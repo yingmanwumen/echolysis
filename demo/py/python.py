@@ -15,11 +15,13 @@ PY_COMPLEX_STATEMENT = {
     "try_statement",
     "while_statement",
     "with_statement",
+    "call",
+    "function_definition",
+    "class_definition",
 }
 
 PY_NODES_TO_SKIP = {"comment"}
 
-# PY_QUERY_TO_OBFUSCATE = {"variable", "constant", "constant.builtin", "number"}
 PY_QUERY_TO_OBFUSCATE = {"variable"}
 
 DUPLICATED_THRESHOLD = 3
@@ -43,7 +45,7 @@ def merkle_hash(
         node: Node, record: Dict[int, int], query_of_node: Dict[int, str]
     ) -> int:
         # Skip comment
-        if node.grammar_name in PY_NODES_TO_SKIP:
+        if node.type in PY_NODES_TO_SKIP:
             return 0
 
         if node.child_count == 0:
@@ -61,7 +63,7 @@ def merkle_hash(
             combined_hash = hash((combined_hash, child_hash))
 
         # Only record control sentences , because we don't care about normal statements
-        if node.grammar_name in PY_COMPLEX_STATEMENT:
+        if node.type in PY_COMPLEX_STATEMENT:
             record[node.id] = combined_hash
 
         return combined_hash
@@ -81,12 +83,12 @@ def child_set(node: Node) -> Set[Node]:
     return res
 
 
-def statement_count_of_children(node: Node) -> int:
+def cognitive_complexity(node: Node) -> int:
     count = 0
     for child in node.children:
-        if "statement" in child.grammar_name:
+        if "statement" in child.type or "call" in child.type:
             count += 1
-        count += statement_count_of_children(child)
+        count += cognitive_complexity(child)
     return count
 
 
@@ -97,7 +99,7 @@ def detect_duplicated_tree(
     for node_id, hash in hash_of_node.items():
         if hash not in hash_to_nodes:
             hash_to_nodes[hash] = []
-        if statement_count_of_children(id_map[node_id]) < DUPLICATED_THRESHOLD:
+        if cognitive_complexity(id_map[node_id]) < DUPLICATED_THRESHOLD:
             continue
         hash_to_nodes[hash].append(node_id)
     children = set()
@@ -165,28 +167,33 @@ def main():
         nodes_count = len(nodes)
         for i, node in enumerate(nodes):
             node = id_map_of_tree[node]
+            start = node.start_point.row + 1
+            end = node.end_point.row + 1
             print(
-                f"{path_of_nodes[node.id]} ({node.start_point.row + 1}~{node.end_point.row + 1})"
+                f"{path_of_nodes[node.id]}:{start} {end - start + 1} lines long, cognitive complexity: {cognitive_complexity(node)}"
             )
             print(" " * node.start_point.column + node.text.decode())  # type: ignore
             if i != nodes_count - 1:
                 print("-------------------------------------------------------")
     print("#######################################################")
-    print(f"{len(paths)}\tpython files passed")
+    print(f"Language:\t\t\tRust")
+    print(f"Complexity threshold:\t\t{DUPLICATED_THRESHOLD}")
+    print(f"Passed files:\t\t\t{len(paths)}")
     print(
-        f"{sum(x.root_node.end_point.row - x.root_node.start_point.row for x in trees.values())}\tlines checked"
+        f"Checked lines: \t\t\t{sum(x.root_node.end_point.row - x.root_node.start_point.row for x in trees.values())}"
     )
-    print(f"{len(id_map_of_tree)}\tast nodes loaded")
-    print(f"{len(duplicated_trees)}\tduplicated code segments found")
+    print(f"Loaded AST nodes:\t\t{len(id_map_of_tree)}")
+    print(f"Duplicated code segment groups:\t{len(duplicated_trees)}")
+    print(f"Duplicated code segment places:\t{sum(len(x) for x in duplicated_trees)}")
 
     print("-------------------------------------------------------")
 
-    print(f"Parsing cost:\t{parsing_cost} s")
-    print(f"Loading cost:\t{loading_cost} s")
-    print(f"Hashing cost:\t{hashing_cost} s")
-    print(f"Detecting cost:\t{detecting_cost} s")
+    print(f"Parsing cost:\t{format(parsing_cost, '.6f')} s")
+    print(f"Loading cost:\t{format(loading_cost, '.6f')} s")
+    print(f"Hashing cost:\t{format(hashing_cost, '.6f')} s")
+    print(f"Detecting cost:\t{format(detecting_cost, '.6f')} s")
     print(
-        f"Total cost:\t{ parsing_cost + loading_cost + hashing_cost + detecting_cost} s"
+        f"Total cost:\t{format(parsing_cost + loading_cost + hashing_cost + detecting_cost, '.6f')} s"
     )
 
 
