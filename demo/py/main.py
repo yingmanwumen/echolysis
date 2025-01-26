@@ -19,7 +19,8 @@ PY_COMPLEX_STATEMENT = {
 
 PY_NODES_TO_SKIP = {"comment"}
 
-PY_QUERY_TO_OBFUSCATE = {"variable", "constant", "constant.builtin", "number"}
+# PY_QUERY_TO_OBFUSCATE = {"variable", "constant", "constant.builtin", "number"}
+PY_QUERY_TO_OBFUSCATE = {"variable"}
 
 
 def parse_file(path: str, parser: Parser) -> Tree:
