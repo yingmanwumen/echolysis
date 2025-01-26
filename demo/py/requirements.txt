@@ -1,0 +1,2 @@
+tree_sitter==0.24.0
+tree_sitter_python==0.23.6
