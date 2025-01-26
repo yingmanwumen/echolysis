@@ -56,7 +56,6 @@ RUST_COGNITIVE_NODES = {
     "call_expression": 1,
     "index_expression": 1,
     "parenthesized_expression": 0.5,
-    "range_expression": 0.5,
     "reference_expression": 0.5,
     "return_expression": 1.5,
     "yield_expression": 1.5,
