@@ -8,6 +8,19 @@ import tree_sitter_python
 
 NATIVE_ENCODING = sys.getfilesystemencoding()
 
+PY_COMPLEX_STATEMENT = {
+    "for_statement",
+    "if_statement",
+    "match_statement",
+    "try_statement",
+    "while_statement",
+    "with_statement",
+}
+
+PY_NODES_TO_SKIP = {"comment"}
+
+PY_QUERY_TO_OBFUSCATE = {"variable", "constant", "constant.builtin", "number"}
+
 
 def parse_file(path: str, parser: Parser) -> Tree:
     try:
@@ -23,28 +36,29 @@ def merkle_hash(
 ) -> Dict[int, int]:
     res = {}
 
-    control_keywords = {"if_statement", "for_statement", "while_statement", "with"}
-
     def do_merkle_hash(
-        node: "Node", record: Dict[int, int], query_of_node: Dict[int, str]
+        node: Node, record: Dict[int, int], query_of_node: Dict[int, str]
     ) -> int:
         # Skip comment
-        if node.grammar_name == "comment":
+        if node.grammar_name in PY_NODES_TO_SKIP:
             return 0
 
         if node.child_count == 0:
             node_hash = hash(node.text)
-            if node.id in query_of_node and query_of_node[node.id] == "variable":
+            if (
+                node.id in query_of_node
+                and query_of_node[node.id] in PY_QUERY_TO_OBFUSCATE
+            ):
                 node_hash = hash(query_of_node[node.id])
             return node_hash
 
         combined_hash = 0
         for child in node.children:
             child_hash = do_merkle_hash(child, record, query_of_node)
-            combined_hash = hash((combined_hash, child_hash))  # 避免简单加法哈希冲突
+            combined_hash = hash((combined_hash, child_hash))
 
         # Only record control sentences , because we don't care about normal statements
-        if node.grammar_name in control_keywords:
+        if node.grammar_name in PY_COMPLEX_STATEMENT:
             record[node.id] = combined_hash
 
         return combined_hash
@@ -78,9 +92,6 @@ def detect_duplicated_tree(
 ) -> List[List[int]]:
     hash_to_nodes: Dict[int, List[int]] = {}
     for node_id, hash in hash_of_node.items():
-        name = id_map[node_id].grammar_name
-        if name == "comment":
-            continue
         if hash not in hash_to_nodes:
             hash_to_nodes[hash] = []
         if statement_count_of_children(id_map[node_id]) < 3:
@@ -148,25 +159,32 @@ def main():
 
     for nodes in duplicated_trees:
         print("=======================================================")
-        for node in nodes:
+        nodes_count = len(nodes)
+        for i, node in enumerate(nodes):
             node = id_map_of_tree[node]
             print(
-                f"{path_of_nodes[node.id]}({node.start_point.row + 1}~{node.end_point.row + 1})"
+                f"{path_of_nodes[node.id]} ({node.start_point.row + 1}~{node.end_point.row + 1})"
             )
             print(" " * node.start_point.column + node.text.decode())  # type: ignore
-            print("-------------------------------------------------------")
+            if i != nodes_count - 1:
+                print("-------------------------------------------------------")
     print("#######################################################")
-    print(f"{len(paths)} files passed")
+    print(f"{len(paths)}\tpython files passed")
     print(
-        f"{sum(x.root_node.end_point.row - x.root_node.start_point.row for x in trees.values())} lines checked"
+        f"{sum(x.root_node.end_point.row - x.root_node.start_point.row for x in trees.values())}\tlines checked"
     )
-    print(len(duplicated_trees), "duplicated code segments found")
+    print(f"{len(id_map_of_tree)}\tast nodes loaded")
+    print(f"{len(duplicated_trees)}\tduplicated code segments found")
 
-    print("Parsing cost:", parsing_cost)
-    print("Loading cost:", loading_cost)
-    print("Hashing cost:", hashing_cost)
-    print("Detecting cost:", detecting_cost)
-    print("Total cost:", parsing_cost + loading_cost + hashing_cost + detecting_cost)
+    print("-------------------------------------------------------")
+
+    print(f"Parsing cost:\t{parsing_cost} s")
+    print(f"Loading cost:\t{loading_cost} s")
+    print(f"Hashing cost:\t{hashing_cost} s")
+    print(f"Detecting cost:\t{detecting_cost} s")
+    print(
+        f"Total cost:\t{ parsing_cost + loading_cost + hashing_cost + detecting_cost} s"
+    )
 
 
 if __name__ == "__main__":
