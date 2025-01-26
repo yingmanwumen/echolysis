@@ -22,6 +22,8 @@ PY_NODES_TO_SKIP = {"comment"}
 # PY_QUERY_TO_OBFUSCATE = {"variable", "constant", "constant.builtin", "number"}
 PY_QUERY_TO_OBFUSCATE = {"variable"}
 
+DUPLICATED_THRESHOLD = 3
+
 
 def parse_file(path: str, parser: Parser) -> Tree:
     try:
@@ -33,7 +35,7 @@ def parse_file(path: str, parser: Parser) -> Tree:
 
 
 def merkle_hash(
-    trees: Dict[str, "Tree"], query_of_node: Dict[str, Dict[int, str]]
+    trees: Dict[str, Tree], query_of_node: Dict[str, Dict[int, str]]
 ) -> Dict[int, int]:
     res = {}
 
@@ -95,7 +97,7 @@ def detect_duplicated_tree(
     for node_id, hash in hash_of_node.items():
         if hash not in hash_to_nodes:
             hash_to_nodes[hash] = []
-        if statement_count_of_children(id_map[node_id]) < 3:
+        if statement_count_of_children(id_map[node_id]) < DUPLICATED_THRESHOLD:
             continue
         hash_to_nodes[hash].append(node_id)
     children = set()
