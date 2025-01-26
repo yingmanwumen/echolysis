@@ -10,8 +10,6 @@ import tree_sitter_rust
 NATIVE_ENCODING = sys.getfilesystemencoding()
 
 RUST_COMPLEX_STATEMENT = {
-    # "async_block",
-    # "block",
     "call_expression",
     "const_block",
     "for_expression",
@@ -22,38 +20,53 @@ RUST_COMPLEX_STATEMENT = {
     "function_item",
     "impl_item",
     "trait_item",
+    "closure_expression",
 }
 
-# Different nodes have different cognitive complexity
 RUST_COGNITIVE_NODES = {
-    "call_expression": 1,
-    "for_expression": 1,
-    "loop_expression": 1,
-    "break_expression": 1,
-    "if_expression": 1,
-    "continue_expression": 1,
-    "match_expression": 1,
-    "while_expression": 1,
-    "match_pattern": 1,
-    "or_pattern": 0.5,
     "block": 1,
-    "async_block": 1,
-    "unsafe_block": 1,
-    "macro_invocation": 1,
+    "if_expression": 1,
+    "match_expression": 1,
+    "match_pattern": 1,
+    "loop_expression": 1,
+    "for_expression": 1,
+    "while_expression": 1,
+    "break_expression": 1,
+    "continue_expression": 1,
+    "try_expression": 1,
+    "try_block": 1,
     "binary_expression": 0.5,
-    "index_expression": 0.5,
+    "unary_expression": 0.5,
+    "let_condition": 0.5,
+    "closure_expression": 1,
+    "async_block": 1,
+    "function_item": 1,
+    "unsafe_block": 1,
+    "await_expression": 0.5,
+    "type_cast_expression": 0.5,
+    "macro_invocation": 1,
+    "attribute_item": 0.5,
+    "or_pattern": 0.5,
+    "compound_assignment_expression": 0.5,
     "range_expression": 0.5,
+    "lifetime": 0.5,
+    "const_block": 1,
+    "gen_block": 1,
+    "array_expression": 1,
+    "call_expression": 1,
+    "index_expression": 1,
+    "parenthesized_expression": 0.5,
+    "range_expression": 0.5,
+    "reference_expression": 0.5,
+    "return_expression": 1.5,
+    "yield_expression": 1.5,
     "tuple_expression": 1,
     "tuple_pattern": 1,
-    "array_expression": 1,
-    "compound_assignment_expr": 0.5,
-    "closure_expression": 1,
-    "try_expression": 1,
-    "type_arguments": 1,
-    "let_condition": 1,
-    "scoped_identifier": 0.5,
-    "struct_pattern": 0.5,
+    "type_arguments": 0.5,
+    "struct_pattern": 1,
     "field_pattern": 0.5,
+    "remaining_field_pattern": 0.5,
+    "tuple_struct_pattern": 1,
 }
 
 RUST_NODES_TO_SKIP = {
@@ -66,7 +79,7 @@ RUST_NODES_TO_SKIP = {
 }
 
 RUST_QUERY_TO_OBFUSCATE = {"variable.parameter"}
-RUST_QUERY_NOT_TO_OBFUSCATE = {"type", "function"}
+RUST_QUERY_NOT_TO_OBFUSCATE = {"type", "constant", "function", "constructor", "label"}
 
 RUST_NODES_TO_OBFUSCATE = {"identifier"}
 
@@ -84,11 +97,12 @@ def parse_file(path: str, parser: Parser) -> Tree:
 
 def hash_node(node: Node, query: Optional[str]) -> int:
     res = hash(node.text)
-    if query in RUST_QUERY_NOT_TO_OBFUSCATE:
-        return res
-    if query and query in RUST_QUERY_TO_OBFUSCATE:
-        return hash(query)
-    if query in RUST_NODES_TO_OBFUSCATE:
+    if query:
+        if query in RUST_QUERY_NOT_TO_OBFUSCATE:
+            return res
+        if query in RUST_QUERY_TO_OBFUSCATE:
+            return hash(query)
+    if node.type in RUST_NODES_TO_OBFUSCATE:
         return hash(node.type)
     return res
 
@@ -133,13 +147,16 @@ def child_set(node: Node) -> Set[Node]:
     return res
 
 
-def cognitive_complexity(node: Node) -> int:
-    count = (
-        0 if node.type not in RUST_COGNITIVE_NODES else RUST_COGNITIVE_NODES[node.type]
-    )
-    for child in node.children:
-        count += cognitive_complexity(child)
-    return count
+def cognitive_complexity(node: Node) -> float:
+    res = 0.0
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        stack.extend(n.children)
+        res += 0 if n.type not in RUST_COGNITIVE_NODES else RUST_COGNITIVE_NODES[n.type]
+        # if n.type in RUST_COGNITIVE_NODES:
+        #     print(n.type, RUST_COGNITIVE_NODES[n.type])
+    return res
 
 
 def detect_duplicated_tree(
@@ -183,15 +200,15 @@ def main():
     paths = sys.argv[1:]
 
     now = time.time()
-    py_language = Language(tree_sitter_rust.language())
-    py_parser = Parser(py_language)
-    py_query = Query(py_language, tree_sitter_rust.HIGHLIGHTS_QUERY)
+    rust_language = Language(tree_sitter_rust.language())
+    rust_parser = Parser(rust_language)
+    rust_query = Query(rust_language, tree_sitter_rust.HIGHLIGHTS_QUERY)
     trees: Dict[str, Tree] = {}
     query_to_nodes: Dict[str, Dict[str, List[Node]]] = {}
     query_of_node: Dict[str, Dict[int, str]] = {}
     for path in paths:
-        trees[path] = parse_file(path, py_parser)
-        query_to_nodes[path] = py_query.captures(trees[path].root_node)
+        trees[path] = parse_file(path, rust_parser)
+        query_to_nodes[path] = rust_query.captures(trees[path].root_node)
         query_of_node[path] = {}
         for query, nodes in query_to_nodes[path].items():
             for node in nodes:

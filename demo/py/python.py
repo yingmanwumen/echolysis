@@ -24,7 +24,7 @@ PY_NODES_TO_SKIP = {"comment"}
 
 PY_QUERY_TO_OBFUSCATE = {"variable"}
 
-DUPLICATED_THRESHOLD = 3
+DUPLICATED_THRESHOLD = 5
 
 
 def parse_file(path: str, parser: Parser) -> Tree:
@@ -84,12 +84,14 @@ def child_set(node: Node) -> Set[Node]:
 
 
 def cognitive_complexity(node: Node) -> int:
-    count = 0
-    for child in node.children:
-        if "statement" in child.type or "call" in child.type:
-            count += 1
-        count += cognitive_complexity(child)
-    return count
+    res = 0
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        stack.extend(n.children)
+        if "statement" in n.type or "call" in n.type or "function_definition" in n.type:
+            res += 1
+    return res
 
 
 def detect_duplicated_tree(
