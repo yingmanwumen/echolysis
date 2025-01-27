@@ -114,7 +114,6 @@ def merkle_hash(
     def do_merkle_hash(
         node: Node, record: Dict[int, int], query_of_node: Dict[int, str]
     ) -> int:
-        # Skip comment
         if node.type in RUST_NODES_TO_SKIP:
             return 0
 
@@ -132,17 +131,18 @@ def merkle_hash(
         return combined_hash
 
     for path, tree in trees.items():
-        root_query = query_of_node.get(path, {})
-        do_merkle_hash(tree.root_node, res, root_query)
+        do_merkle_hash(tree.root_node, res, query_of_node.get(path, {}))
 
     return res
 
 
 def child_set(node: Node) -> Set[Node]:
     res = set()
-    res.update(node.children)
-    for child in node.children:
-        res.update(child_set(child))
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        res.update(n.children)
+        stack.extend(n.children)
     return res
 
 
@@ -152,7 +152,7 @@ def cognitive_complexity(node: Node) -> float:
     while stack:
         n = stack.pop()
         stack.extend(n.children)
-        res += 0 if n.type not in RUST_COGNITIVE_NODES else RUST_COGNITIVE_NODES[n.type]
+        res += RUST_COGNITIVE_NODES.get(n.type, 0)
         # if n.type in RUST_COGNITIVE_NODES:
         #     print(n.type, RUST_COGNITIVE_NODES[n.type])
     return res
@@ -236,7 +236,7 @@ def main():
             print(
                 f"{path_of_nodes[node.id]}:{start} {end - start + 1} lines long, cognitive complexity: {cognitive_complexity(node)}"
             )
-            print(" " * node.start_point.column + node.text.decode())  # type: ignore
+            print(" " * node.start_point.column + node.text.decode(NATIVE_ENCODING))  # type: ignore
             if i != nodes_count - 1:
                 print("-------------------------------------------------------")
     print("#######################################################")
