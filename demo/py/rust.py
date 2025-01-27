@@ -86,6 +86,18 @@ DUPLICATED_THRESHOLD = 10
 
 
 def parse_file(path: str, parser: Parser) -> Tree:
+    """Parse a Rust source file into an AST using tree-sitter
+
+    Args:
+        path: Path to the Rust source file
+        parser: Configured tree-sitter parser
+
+    Returns:
+        Tree: The parsed syntax tree
+
+    Raises:
+        Exception: If parsing fails
+    """
     try:
         with open(path) as f:
             return parser.parse(bytes(f.read(), NATIVE_ENCODING))
@@ -95,6 +107,15 @@ def parse_file(path: str, parser: Parser) -> Tree:
 
 
 def hash_node(node: Node, query: Optional[str]) -> int:
+    """Generate a hash for an AST node considering its type and context
+
+    Args:
+        node: The AST node to hash
+        query: Optional query pattern that matched this node
+
+    Returns:
+        int: A hash value representing the node's content and context
+    """
     res = hash(node.text)
     if query:
         if query in RUST_QUERY_NOT_TO_OBFUSCATE:
@@ -109,6 +130,15 @@ def hash_node(node: Node, query: Optional[str]) -> int:
 def merkle_hash(
     trees: Dict[str, Tree], query_of_node: Dict[str, Dict[int, str]]
 ) -> Dict[int, int]:
+    """Generate Merkle-style hashes for all nodes in the syntax trees
+
+    Args:
+        trees: Mapping of file paths to their parsed syntax trees
+        query_of_node: Mapping of node IDs to their matching query patterns
+
+    Returns:
+        Dict[int, int]: Mapping of node IDs to their computed hashes
+    """
     res = {}
 
     def do_merkle_hash(
@@ -137,6 +167,14 @@ def merkle_hash(
 
 
 def child_set(node: Node) -> Set[Node]:
+    """Get all descendant nodes of a given node
+
+    Args:
+        node: The root node to collect children from
+
+    Returns:
+        Set[Node]: All descendant nodes including immediate children
+    """
     res = set()
     stack = [node]
     while stack:
@@ -147,6 +185,14 @@ def child_set(node: Node) -> Set[Node]:
 
 
 def cognitive_complexity(node: Node) -> float:
+    """Calculate the cognitive complexity of a code segment
+
+    Args:
+        node: The root node of the code segment
+
+    Returns:
+        float: The computed complexity score based on node types
+    """
     res = 0.0
     stack = [node]
     while stack:
@@ -161,6 +207,15 @@ def cognitive_complexity(node: Node) -> float:
 def detect_duplicated_tree(
     hash_of_node: Dict[int, int], id_map: Dict[int, Node]
 ) -> List[List[int]]:
+    """Detect duplicated code segments based on node hashes and complexity
+
+    Args:
+        hash_of_node: Mapping of node IDs to their hashes
+        id_map: Mapping of node IDs to their corresponding nodes
+
+    Returns:
+        List[List[int]]: Groups of node IDs representing duplicate code segments
+    """
     hash_to_nodes: Dict[int, List[int]] = defaultdict(list)
     for node_id, hash in hash_of_node.items():
         if cognitive_complexity(id_map[node_id]) < DUPLICATED_THRESHOLD:
@@ -182,6 +237,16 @@ def detect_duplicated_tree(
 def get_extra_data_of_tree(
     trees: Dict[str, Tree]
 ) -> Tuple[Dict[int, Node], Dict[int, str]]:
+    """Build mappings of node IDs to nodes and their file paths
+
+    Args:
+        trees: Mapping of file paths to their parsed syntax trees
+
+    Returns:
+        Tuple[Dict[int, Node], Dict[int, str]]:
+            - Mapping of node IDs to nodes
+            - Mapping of node IDs to file paths
+    """
     id_map = {}
     path_map = {}
 
@@ -196,6 +261,10 @@ def get_extra_data_of_tree(
 
 
 def main():
+    """Main entry point for the Rust code analysis tool
+
+    Processes Rust source files to detect duplicate code segments and calculate complexity metrics
+    """
     paths = sys.argv[1:]
 
     now = time.time()
