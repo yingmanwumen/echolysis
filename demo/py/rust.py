@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from collections import defaultdict
+from collections import defaultdict, deque
 import sys
 import time
 from typing import Dict, List, Optional, Set, Tuple
@@ -106,6 +106,11 @@ def parse_file(path: str, parser: Parser) -> Tree:
         raise e
 
 
+# Cache for query and type hashes to avoid re-computation
+_QUERY_HASH_CACHE = {query: hash(query) for query in RUST_QUERY_TO_OBFUSCATE}
+_TYPE_HASH_CACHE = {type_: hash(type_) for type_ in RUST_NODES_TO_OBFUSCATE}
+
+
 def hash_node(node: Node, query: Optional[str]) -> int:
     """Generate a hash for an AST node considering its type and context
 
@@ -116,15 +121,17 @@ def hash_node(node: Node, query: Optional[str]) -> int:
     Returns:
         int: A hash value representing the node's content and context
     """
-    res = hash(node.text)
+    # Directly hash the node's byte content without creating new bytes object
     if query:
         if query in RUST_QUERY_NOT_TO_OBFUSCATE:
-            return res
+            return hash(node.text)
         if query in RUST_QUERY_TO_OBFUSCATE:
-            return hash(query)
+            return _QUERY_HASH_CACHE[query]  # Use cached hash
+
     if node.type in RUST_NODES_TO_OBFUSCATE:
-        return hash(node.type)
-    return res
+        return _TYPE_HASH_CACHE[node.type]  # Use cached hash
+
+    return hash(node.text)
 
 
 def merkle_hash(
@@ -176,7 +183,7 @@ def child_set(node: Node) -> Set[Node]:
         Set[Node]: All descendant nodes including immediate children
     """
     res = set()
-    stack = [node]
+    stack = deque([node])
     while stack:
         n = stack.pop()
         res.update(n.children)
@@ -194,7 +201,7 @@ def cognitive_complexity(node: Node) -> float:
         float: The computed complexity score based on node types
     """
     res = 0.0
-    stack = [node]
+    stack = deque([node])
     while stack:
         n = stack.pop()
         stack.extend(n.children)
@@ -236,7 +243,7 @@ def detect_duplicated_tree(
 
 def get_extra_data_of_tree(
     trees: Dict[str, Tree]
-) -> Tuple[Dict[int, Node], Dict[int, str]]:
+) -> Tuple[Dict[int, Node], Dict[str, Set[int]]]:
     """Build mappings of node IDs to nodes and their file paths
 
     Args:
@@ -248,14 +255,14 @@ def get_extra_data_of_tree(
             - Mapping of node IDs to file paths
     """
     id_map = {}
-    path_map = {}
+    path_map = defaultdict(set)
 
     for path, tree in trees.items():
-        stack = [tree.root_node]
+        stack = deque([tree.root_node])
         while stack:
             node = stack.pop()
             id_map[node.id] = node
-            path_map[node.id] = path
+            path_map[path].add(node.id)
             stack.extend(node.children)
     return id_map, path_map
 
@@ -284,7 +291,7 @@ def main():
     parsing_cost = time.time() - now
 
     now = time.time()
-    id_map_of_tree, path_of_nodes = get_extra_data_of_tree(trees)
+    id_map_of_tree, path_map = get_extra_data_of_tree(trees)
     loading_cost = time.time() - now
 
     now = time.time()
@@ -302,8 +309,11 @@ def main():
             node = id_map_of_tree[node]
             start = node.start_point.row + 1
             end = node.end_point.row + 1
+            node_path = next(
+                path for path, node_ids in path_map.items() if node.id in node_ids
+            )
             print(
-                f"{path_of_nodes[node.id]}:{start} {end - start + 1} lines long, cognitive complexity: {cognitive_complexity(node)}"
+                f"{node_path}:{start} {end - start + 1} lines long, cognitive complexity: {cognitive_complexity(node)}"
             )
             print(" " * node.start_point.column + node.text.decode(NATIVE_ENCODING))  # type: ignore
             if i != nodes_count - 1:
