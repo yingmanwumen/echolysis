@@ -106,11 +106,6 @@ def parse_file(path: str, parser: Parser) -> Tree:
         raise e
 
 
-# Cache for query and type hashes to avoid re-computation
-_QUERY_HASH_CACHE = {query: hash(query) for query in RUST_QUERY_TO_OBFUSCATE}
-_TYPE_HASH_CACHE = {type_: hash(type_) for type_ in RUST_NODES_TO_OBFUSCATE}
-
-
 def hash_node(node: Node, query: Optional[str]) -> int:
     """Generate a hash for an AST node considering its type and context
 
@@ -126,51 +121,12 @@ def hash_node(node: Node, query: Optional[str]) -> int:
         if query in RUST_QUERY_NOT_TO_OBFUSCATE:
             return hash(node.text)
         if query in RUST_QUERY_TO_OBFUSCATE:
-            return _QUERY_HASH_CACHE[query]  # Use cached hash
+            return hash(query)
 
     if node.type in RUST_NODES_TO_OBFUSCATE:
-        return _TYPE_HASH_CACHE[node.type]  # Use cached hash
+        return hash(node.type)
 
     return hash(node.text)
-
-
-def merkle_hash(
-    trees: Dict[str, Tree], query_of_node: Dict[str, Dict[int, str]]
-) -> Dict[int, int]:
-    """Generate Merkle-style hashes for all nodes in the syntax trees
-
-    Args:
-        trees: Mapping of file paths to their parsed syntax trees
-        query_of_node: Mapping of node IDs to their matching query patterns
-
-    Returns:
-        Dict[int, int]: Mapping of node IDs to their computed hashes
-    """
-    res = {}
-
-    def do_merkle_hash(
-        node: Node, record: Dict[int, int], query_of_node: Dict[int, str]
-    ) -> int:
-        if node.type in RUST_NODES_TO_SKIP:
-            return 0
-
-        if node.child_count == 0:
-            return hash_node(node, query_of_node.get(node.id))
-
-        combined_hash = 0
-        for child in node.children:
-            child_hash = do_merkle_hash(child, record, query_of_node)
-            combined_hash = hash((combined_hash, child_hash))
-
-        if node.type in RUST_COMPLEX_STATEMENT:
-            record[node.id] = combined_hash
-
-        return combined_hash
-
-    for path, tree in trees.items():
-        do_merkle_hash(tree.root_node, res, query_of_node.get(path, {}))
-
-    return res
 
 
 def child_set(node: Node) -> Set[Node]:
@@ -206,8 +162,6 @@ def cognitive_complexity(node: Node) -> float:
         n = stack.pop()
         stack.extend(n.children)
         res += RUST_COGNITIVE_NODES.get(n.type, 0)
-        # if n.type in RUST_COGNITIVE_NODES:
-        #     print(n.type, RUST_COGNITIVE_NODES[n.type])
     return res
 
 
@@ -241,30 +195,39 @@ def detect_duplicated_tree(
     return res
 
 
-def get_extra_data_of_tree(
-    trees: Dict[str, Tree]
-) -> Tuple[Dict[int, Node], Dict[str, Set[int]]]:
-    """Build mappings of node IDs to nodes and their file paths
-
-    Args:
-        trees: Mapping of file paths to their parsed syntax trees
-
-    Returns:
-        Tuple[Dict[int, Node], Dict[int, str]]:
-            - Mapping of node IDs to nodes
-            - Mapping of node IDs to file paths
-    """
+def compute_hash_and_collect_data(
+    trees: Dict[str, Tree], query_of_node: Dict[str, Dict[int, str]]
+) -> Tuple[Dict[int, int], Dict[int, Node], Dict[str, Set[int]]]:
+    hash_of_node = {}
     id_map = {}
     path_map = defaultdict(set)
 
+    def do_merkle_hash(
+        node: Node, record: Dict[int, int], query_of_node: Dict[int, str], path: str
+    ) -> int:
+        if node.type in RUST_NODES_TO_SKIP or node.is_missing:
+            return 0
+
+        id_map[node.id] = node
+        path_map[path].add(node.id)
+
+        if node.child_count == 0:
+            return hash_node(node, query_of_node.get(node.id))
+
+        combined_hash = 0
+        for child in node.children:
+            child_hash = do_merkle_hash(child, record, query_of_node, path)
+            combined_hash = hash((combined_hash, child_hash))
+
+        if node.type in RUST_COMPLEX_STATEMENT:
+            record[node.id] = combined_hash
+
+        return combined_hash
+
     for path, tree in trees.items():
-        stack = deque([tree.root_node])
-        while stack:
-            node = stack.pop()
-            id_map[node.id] = node
-            path_map[path].add(node.id)
-            stack.extend(node.children)
-    return id_map, path_map
+        do_merkle_hash(tree.root_node, hash_of_node, query_of_node.get(path, {}), path)
+
+    return hash_of_node, id_map, path_map
 
 
 def main():
@@ -291,12 +254,10 @@ def main():
     parsing_cost = time.time() - now
 
     now = time.time()
-    id_map_of_tree, path_map = get_extra_data_of_tree(trees)
+    hash_of_node, id_map_of_tree, path_map = compute_hash_and_collect_data(
+        trees, query_of_node
+    )
     loading_cost = time.time() - now
-
-    now = time.time()
-    hash_of_node = merkle_hash(trees, query_of_node)
-    hashing_cost = time.time() - now
 
     now = time.time()
     duplicated_trees = detect_duplicated_tree(hash_of_node, id_map_of_tree)
@@ -318,13 +279,15 @@ def main():
             print(" " * node.start_point.column + node.text.decode(NATIVE_ENCODING))  # type: ignore
             if i != nodes_count - 1:
                 print("-------------------------------------------------------")
+    total_files = len(paths)
+    total_lines = sum(
+        x.root_node.end_point.row - x.root_node.start_point.row for x in trees.values()
+    )
     print("#######################################################")
     print(f"Language:\t\t\tRust")
     print(f"Complexity threshold:\t\t{DUPLICATED_THRESHOLD}")
-    print(f"Passed files:\t\t\t{len(paths)}")
-    print(
-        f"Checked lines: \t\t\t{sum(x.root_node.end_point.row - x.root_node.start_point.row for x in trees.values())}"
-    )
+    print(f"Passed files:\t\t\t{total_files}")
+    print(f"Checked lines: \t\t\t{total_lines}")
     print(f"Loaded AST nodes:\t\t{len(id_map_of_tree)}")
     print(f"Duplicated code segment groups:\t{len(duplicated_trees)}")
     print(f"Duplicated code segment places:\t{sum(len(x) for x in duplicated_trees)}")
@@ -333,11 +296,14 @@ def main():
 
     print(f"Parsing cost:\t{format(parsing_cost, '.6f')} s")
     print(f"Loading cost:\t{format(loading_cost, '.6f')} s")
-    print(f"Hashing cost:\t{format(hashing_cost, '.6f')} s")
     print(f"Detecting cost:\t{format(detecting_cost, '.6f')} s")
     print(
-        f"Total cost:\t{format(parsing_cost + loading_cost + hashing_cost + detecting_cost, '.6f')} s"
+        f"Total cost:\t{format(parsing_cost + loading_cost + detecting_cost, '.6f')} s"
     )
+    files_per_second = total_files / (parsing_cost + loading_cost + detecting_cost)
+    lines_per_second = total_lines / (parsing_cost + loading_cost + detecting_cost)
+    print(f"Files per sec:\t{format(files_per_second, '.6f')}")
+    print(f"Lines per sec:\t{format(lines_per_second, '.6f')}")
 
 
 if __name__ == "__main__":
