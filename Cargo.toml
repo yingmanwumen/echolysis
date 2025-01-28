@@ -1,0 +1,22 @@
+[workspace]
+
+members = [
+  "crates/echolysis-core",
+  "crates/echolysis-cli",
+  "crates/echolysis-lsp",
+]
+
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["yingmanwumen"]
+description = "Duplicated code checker based on tree-sitter"
+repository = "https://github.com/yingmanwumen/echolysis"
+license = "MIT"
+readme = "README.md"
+keywords = []
+categories = []
+
+[workspace.dependencies]
