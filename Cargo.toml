@@ -1,10 +1,6 @@
 [workspace]
 
-members = [
-  "crates/echolysis-core",
-  "crates/echolysis-cli",
-  "crates/echolysis-lsp",
-]
+members = ["crates/echolysis-cli", "crates/echolysis-core", "crates/echolysis-lsp"]
 
 resolver = "2"
 

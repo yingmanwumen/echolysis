@@ -1,0 +1,77 @@
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+  - pre-push
+
+default_stages:
+  - pre-commit
+  - pre-push
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-byte-order-marker
+      - id: check-executables-have-shebangs
+      - id: check-illegal-windows-names
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-vcs-permalinks
+      - id: destroyed-symlinks
+      - id: mixed-line-ending
+        exclude: ^test/
+      - id: pretty-format-json
+      - id: requirements-txt-fixer
+      - id: trailing-whitespace
+        exclude: ^test/
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.29.4
+    hooks:
+      - id: typos
+
+  - repo: https://github.com/DevinR528/cargo-sort
+    rev: v1.1.0
+    hooks:
+      - id: cargo-sort
+
+  # - repo: https://github.com/est31/cargo-udeps
+  #   rev: v0.1.54
+  #   hooks:
+  #     - id: udeps
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.44.0
+    hooks:
+      - id: markdownlint
+
+  - repo: local
+    hooks:
+      - id: fmt
+        name: fmt
+        language: system
+        entry: cargo fmt
+        pass_filenames: false
+      - id: clippy
+        name: clippy
+        language: system
+        entry: cargo clippy --all-targets --all-features -- -D warnings
+        pass_filenames: false
+      - id: test
+        name: test
+        language: system
+        entry: cargo test
+        pass_filenames: false
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.1.1
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+default_language_version:
+  python: python3
