@@ -178,7 +178,7 @@ def main():
             if i != nodes_count - 1:
                 print("-------------------------------------------------------")
     print("#######################################################")
-    print(f"Language:\t\t\tRust")
+    print(f"Language:\t\t\tPython")
     print(f"Complexity threshold:\t\t{DUPLICATED_THRESHOLD}")
     print(f"Passed files:\t\t\t{len(paths)}")
     print(
