@@ -1,4 +1,6 @@
+mod insert;
 mod merkle_hash;
+mod remove;
 
 use std::sync::Arc;
 
@@ -18,48 +20,56 @@ use crate::{
 
 pub struct Engine {
     language: SupportedLanguage,
-    #[allow(unused)]
     tree_map: ADashMap<Arc<String>, Tree>,
     id_map: FxDashMap<Id, Node<'static>>,
     path_map: FxDashMap<Id, Arc<String>>,
     hash_map: FxDashMap<u64, FxHashSet<Id>>,
-    #[allow(unused)]
     query_map: FxDashMap<Id, usize>,
 }
 
 impl Engine {
-    pub fn new(language: SupportedLanguage, sources: AHashMap<Arc<String>, &str>) -> Self {
+    pub fn new(language: SupportedLanguage, sources: Option<AHashMap<Arc<String>, &str>>) -> Self {
         let id_map = FxDashMap::default();
         let path_map = FxDashMap::default();
         let tree_map = ADashMap::default();
-        let query = language.query();
         let query_map = FxDashMap::default();
 
-        sources.par_iter().for_each(|(path, source)| {
-            let mut parser = language.parser();
-            if let Some(tree) = parser.parse(source, None) {
-                collect_data(
-                    &tree,
-                    path.clone(),
-                    source,
-                    &id_map,
-                    &path_map,
-                    query,
-                    &query_map,
-                );
-                tree_map.insert(path.clone(), tree);
+        if let Some(sources) = sources {
+            let query = language.query();
+            sources.par_iter().for_each(|(path, source)| {
+                let mut parser = language.parser();
+                if let Some(tree) = parser.parse(source, None) {
+                    Self::collect_data(
+                        &tree,
+                        path.clone(),
+                        source,
+                        &id_map,
+                        &path_map,
+                        query,
+                        &query_map,
+                    );
+                    tree_map.insert(path.clone(), tree);
+                }
+            });
+
+            let hash_map = Self::merkle_hash_trees(&language, &tree_map, &query_map, &sources);
+            Self {
+                language,
+                tree_map,
+                id_map,
+                hash_map,
+                path_map,
+                query_map,
             }
-        });
-
-        let hash_map = Self::merkle_hash(&language, &tree_map, &query_map, &sources);
-
-        Self {
-            language,
-            tree_map,
-            id_map,
-            hash_map,
-            path_map,
-            query_map,
+        } else {
+            Self {
+                language,
+                tree_map,
+                id_map,
+                path_map,
+                query_map,
+                hash_map: FxDashMap::default(),
+            }
         }
     }
 
@@ -105,27 +115,27 @@ impl Engine {
     pub fn language(&self) -> &SupportedLanguage {
         &self.language
     }
-}
 
-fn collect_data(
-    tree: &Tree,
-    path: Arc<String>,
-    source: &str,
-    id_map: &FxDashMap<Id, Node<'static>>,
-    path_map: &FxDashMap<Id, Arc<String>>,
-    query: &Query,
-    query_map: &FxDashMap<Id, usize>,
-) {
-    preorder_traverse(tree.root_node(), |node| {
-        let node: Node<'static> = unsafe { std::mem::transmute(node) };
-        path_map.insert(node.id().into(), path.clone());
-        id_map.insert(node.id().into(), node);
-    });
-    QueryCursor::new()
-        .captures(query, tree.root_node(), source.as_bytes())
-        .for_each(|(x, _)| {
-            if let Some(capture) = x.captures.last() {
-                query_map.insert(capture.node.id().into(), capture.index as usize);
-            }
+    fn collect_data(
+        tree: &Tree,
+        path: Arc<String>,
+        source: &str,
+        id_map: &FxDashMap<Id, Node<'static>>,
+        path_map: &FxDashMap<Id, Arc<String>>,
+        query: &Query,
+        query_map: &FxDashMap<Id, usize>,
+    ) {
+        preorder_traverse(tree.root_node(), |node| {
+            let node: Node<'static> = unsafe { std::mem::transmute(node) };
+            path_map.insert(node.id().into(), path.clone());
+            id_map.insert(node.id().into(), node);
         });
+        QueryCursor::new()
+            .captures(query, tree.root_node(), source.as_bytes())
+            .for_each(|(x, _)| {
+                if let Some(capture) = x.captures.last() {
+                    query_map.insert(capture.node.id().into(), capture.index as usize);
+                }
+            });
+    }
 }

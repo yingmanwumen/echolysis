@@ -41,6 +41,15 @@ where
     }
 }
 
+impl<K, V> From<DashMap<K, V, ahash::RandomState>> for ADashMap<K, V>
+where
+    K: std::cmp::Eq + std::hash::Hash,
+{
+    fn from(value: DashMap<K, V, ahash::RandomState>) -> Self {
+        Self { inner: value }
+    }
+}
+
 #[derive(Debug)]
 pub struct FxDashMap<K, V>
 where

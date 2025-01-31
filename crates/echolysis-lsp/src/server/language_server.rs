@@ -14,12 +14,29 @@ impl LanguageServer for Server {
         ))
         .await;
 
+        // Ok(lsp_types::InitializeResult {
+        //     capabilities: lsp_types::ServerCapabilities {
+        //         text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Options(
+        //             lsp_types::TextDocumentSyncOptions {
+        //                 open_close: Some(true),
+        //                 change: Some(lsp_types::TextDocumentSyncKind::INCREMENTAL),
+        //                 ..Default::default()
+        //             },
+        //         )),
+        //         ..Default::default()
+        //     },
+        //     server_info: Some(lsp_types::ServerInfo {
+        //         name: "echolysis-lsp".to_string(),
+        //         version: Some(env!("CARGO_PKG_VERSION").to_string()),
+        //     }),
+        // })
+
         Ok(lsp_types::InitializeResult {
             capabilities: lsp_types::ServerCapabilities {
                 text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Options(
                     lsp_types::TextDocumentSyncOptions {
                         open_close: Some(true),
-                        change: Some(lsp_types::TextDocumentSyncKind::INCREMENTAL),
+                        change: Some(lsp_types::TextDocumentSyncKind::FULL),
                         ..Default::default()
                     },
                 )),

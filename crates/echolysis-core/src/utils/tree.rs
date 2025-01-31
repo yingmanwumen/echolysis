@@ -1,4 +1,7 @@
 use rustc_hash::FxHashSet;
+use tree_sitter::Tree;
+
+use crate::Id;
 
 pub fn preorder_traverse(node: tree_sitter::Node, mut f: impl FnMut(tree_sitter::Node)) {
     let mut cursor = node.walk();
@@ -38,14 +41,26 @@ pub fn postorder_traverse(node: tree_sitter::Node, mut f: impl FnMut(tree_sitter
     }
 }
 
-pub fn children_set(node: tree_sitter::Node) -> FxHashSet<usize> {
-    let mut res = FxHashSet::default();
+pub fn children_set(node: tree_sitter::Node) -> FxHashSet<Id> {
+    let mut res: FxHashSet<Id> = FxHashSet::default();
     let mut stack = Vec::from_iter([node]);
     while let Some(node) = stack.pop() {
         let mut cursor = node.walk();
         let children: Vec<_> = node.children(&mut cursor).collect();
-        res.extend(children.iter().map(|x| x.id()));
+        res.extend(children.iter().map(|x| Id::from(x.id())));
         stack.extend(children);
     }
     res
+}
+
+pub fn tree_diff(lhs: &Tree, rhs: &Tree) -> FxHashSet<Id> {
+    let mut lhs_set = FxHashSet::default();
+    let mut rhs_set = FxHashSet::default();
+    preorder_traverse(lhs.root_node(), |node| {
+        lhs_set.insert(Id::from(node.id()));
+    });
+    preorder_traverse(rhs.root_node(), |node| {
+        rhs_set.insert(Id::from(node.id()));
+    });
+    lhs_set.difference(&rhs_set).copied().collect()
 }

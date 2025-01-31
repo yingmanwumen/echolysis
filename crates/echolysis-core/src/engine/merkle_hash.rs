@@ -26,7 +26,7 @@ impl Engine {
     /// # Returns
     ///
     /// A map of Merkle hashes to sets of node IDs that have that hash.
-    pub(super) fn merkle_hash(
+    pub(super) fn merkle_hash_trees(
         language: &SupportedLanguage,
         trees: &ADashMap<Arc<String>, Tree>,
         query_map: &FxDashMap<Id, usize>,
@@ -35,7 +35,7 @@ impl Engine {
         let hashmap = FxDashMap::default();
 
         trees.par_iter().for_each(|tree| {
-            Self::do_merkle_hash(
+            Self::merkle_hash(
                 language,
                 tree.value().root_node(),
                 query_map,
@@ -47,10 +47,10 @@ impl Engine {
         hashmap
     }
 
-    fn do_merkle_hash(
+    pub(super) fn merkle_hash(
         language: &SupportedLanguage,
         node: Node<'_>,
-        query_of_node: &FxDashMap<Id, usize>,
+        query_map: &FxDashMap<Id, usize>,
         hash_map: &FxDashMap<u64, FxHashSet<Id>>,
         source: &[u8],
     ) -> u64 {
@@ -64,7 +64,7 @@ impl Engine {
         if node.child_count() == 0 {
             return language.simple_hash_node(
                 node,
-                query_of_node.get(&node.id().into()).map(|x| *x.value()),
+                query_map.get(&node.id().into()).map(|x| *x.value()),
                 source,
             );
         }
@@ -73,7 +73,7 @@ impl Engine {
         for child in node.children(&mut cursor) {
             combined_hash = merge_structure_hash(
                 combined_hash,
-                Self::do_merkle_hash(language, child, query_of_node, hash_map, source),
+                Self::merkle_hash(language, child, query_map, hash_map, source),
             )
         }
         if language.node_taste(&node) == NodeTaste::Interesting

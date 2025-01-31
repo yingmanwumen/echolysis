@@ -25,7 +25,7 @@ pub fn main() {
         .collect::<AHashMap<_, _>>();
     let engine = Engine::new(
         SupportedLanguage::try_from("rust").unwrap(),
-        sources.clone(),
+        Some(sources.clone()),
     );
     let indexed = std::time::Instant::now();
 
