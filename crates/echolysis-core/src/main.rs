@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use ahash::AHashMap;
 use echolysis_core::{Engine, SupportedLanguage};
 
@@ -19,7 +21,7 @@ pub fn main() {
     let sources = paths
         .into_iter()
         .zip(&sources)
-        .map(|(path, source)| (path, source.as_str()))
+        .map(|(path, source)| (Arc::new(path), source.as_str()))
         .collect::<AHashMap<_, _>>();
     let engine = Engine::new(
         SupportedLanguage::try_from("rust").unwrap(),
@@ -53,7 +55,7 @@ pub fn main() {
             }
             println!(
                 "{}",
-                node.utf8_text(sources.get(path.as_str()).unwrap().as_bytes())
+                node.utf8_text(sources.get(&path).unwrap().as_bytes())
                     .unwrap()
             );
             if i != len - 1 {

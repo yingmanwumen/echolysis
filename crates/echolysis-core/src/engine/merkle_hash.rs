@@ -14,11 +14,23 @@ use crate::{
 use super::Engine;
 
 impl Engine {
+    /// Computes the Merkle hash for a set of syntax trees.
+    ///
+    /// # Arguments
+    ///
+    /// * `language` - The programming language of the syntax trees.
+    /// * `trees` - A map of source code identifiers to their corresponding syntax trees.
+    /// * `query_of_node` - A map of node IDs to query IDs.
+    /// * `sources` - A map of source code identifiers to their corresponding source code as strings.
+    ///
+    /// # Returns
+    ///
+    /// A map of Merkle hashes to sets of node IDs that have that hash.
     pub(super) fn merkle_hash(
         language: &SupportedLanguage,
         trees: &ADashMap<Arc<String>, Tree>,
         query_of_node: FxDashMap<usize, usize>,
-        sources: AHashMap<String, &str>,
+        sources: AHashMap<Arc<String>, &str>,
     ) -> FxDashMap<u64, FxHashSet<usize>> {
         let hashmap = FxDashMap::default();
 
@@ -29,7 +41,7 @@ impl Engine {
                 &query_of_node,
                 &hashmap,
                 // SAFETY: We know the source is there
-                sources.get(tree.key().as_str()).unwrap().as_bytes(),
+                sources.get(tree.key()).unwrap().as_bytes(),
             );
         });
         hashmap

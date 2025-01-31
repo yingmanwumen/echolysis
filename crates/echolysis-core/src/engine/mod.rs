@@ -26,7 +26,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new(language: SupportedLanguage, sources: AHashMap<String, &str>) -> Self {
+    pub fn new(language: SupportedLanguage, sources: AHashMap<Arc<String>, &str>) -> Self {
         let id_map = FxDashMap::default();
         let path_map = FxDashMap::default();
         let tree_map = ADashMap::default();
@@ -35,9 +35,8 @@ impl Engine {
 
         sources.par_iter().for_each(|(path, source)| {
             let mut parser = language.parser();
-            let path = Arc::new(path.to_string());
             if let Some(tree) = parser.parse(source, None) {
-                analyze_tree(
+                collect_data(
                     &tree,
                     path.clone(),
                     source,
@@ -105,7 +104,7 @@ impl Engine {
     }
 }
 
-fn analyze_tree(
+fn collect_data(
     tree: &tree_sitter::Tree,
     path: Arc<String>,
     source: &str,
