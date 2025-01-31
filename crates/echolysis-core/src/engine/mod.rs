@@ -6,23 +6,25 @@ use ahash::AHashMap;
 use rayon::prelude::*;
 use rustc_hash::FxHashSet;
 use streaming_iterator::StreamingIterator;
-use tree_sitter::{Node, QueryCursor, Tree};
+use tree_sitter::{Node, Query, QueryCursor, Tree};
 
 use crate::{
     utils::{
         hash::{ADashMap, FxDashMap, FxDashSet},
         tree::{children_set, preorder_traverse},
     },
-    SupportedLanguage,
+    Id, SupportedLanguage,
 };
 
 pub struct Engine {
     language: SupportedLanguage,
     #[allow(unused)]
     tree_map: ADashMap<Arc<String>, Tree>,
-    id_map: FxDashMap<usize, Node<'static>>,
-    path_map: FxDashMap<usize, Arc<String>>,
-    hash_map: FxDashMap<u64, FxHashSet<usize>>,
+    id_map: FxDashMap<Id, Node<'static>>,
+    path_map: FxDashMap<Id, Arc<String>>,
+    hash_map: FxDashMap<u64, FxHashSet<Id>>,
+    #[allow(unused)]
+    query_map: FxDashMap<Id, usize>,
 }
 
 impl Engine {
@@ -31,7 +33,7 @@ impl Engine {
         let path_map = FxDashMap::default();
         let tree_map = ADashMap::default();
         let query = language.query();
-        let query_of_node = FxDashMap::default();
+        let query_map = FxDashMap::default();
 
         sources.par_iter().for_each(|(path, source)| {
             let mut parser = language.parser();
@@ -43,13 +45,13 @@ impl Engine {
                     &id_map,
                     &path_map,
                     query,
-                    &query_of_node,
+                    &query_map,
                 );
                 tree_map.insert(path.clone(), tree);
             }
         });
 
-        let hash_map = Self::merkle_hash(&language, &tree_map, query_of_node, sources);
+        let hash_map = Self::merkle_hash(&language, &tree_map, &query_map, &sources);
 
         Self {
             language,
@@ -57,10 +59,11 @@ impl Engine {
             id_map,
             hash_map,
             path_map,
+            query_map,
         }
     }
 
-    pub fn detect_duplicates(&self) -> Vec<Vec<usize>> {
+    pub fn detect_duplicates(&self) -> Vec<Vec<Id>> {
         let children = FxDashSet::default();
         self.hash_map.par_iter().for_each(|nodes| {
             if nodes.value().len() < 2 {
@@ -91,11 +94,11 @@ impl Engine {
             .collect()
     }
 
-    pub fn get_node_by_id(&self, id: usize) -> Option<Node<'static>> {
+    pub fn get_node_by_id(&self, id: Id) -> Option<Node<'static>> {
         self.id_map.get(&id).map(|x| *x.value())
     }
 
-    pub fn get_path_by_id(&self, id: usize) -> Option<Arc<String>> {
+    pub fn get_path_by_id(&self, id: Id) -> Option<Arc<String>> {
         self.path_map.get(&id).map(|x| x.value().clone())
     }
 
@@ -105,24 +108,24 @@ impl Engine {
 }
 
 fn collect_data(
-    tree: &tree_sitter::Tree,
+    tree: &Tree,
     path: Arc<String>,
     source: &str,
-    id_map: &FxDashMap<usize, Node<'static>>,
-    path_map: &FxDashMap<usize, Arc<String>>,
-    query: &tree_sitter::Query,
-    query_of_node: &FxDashMap<usize, usize>,
+    id_map: &FxDashMap<Id, Node<'static>>,
+    path_map: &FxDashMap<Id, Arc<String>>,
+    query: &Query,
+    query_map: &FxDashMap<Id, usize>,
 ) {
     preorder_traverse(tree.root_node(), |node| {
         let node: Node<'static> = unsafe { std::mem::transmute(node) };
-        path_map.insert(node.id(), path.clone());
-        id_map.insert(node.id(), node);
+        path_map.insert(node.id().into(), path.clone());
+        id_map.insert(node.id().into(), node);
     });
     QueryCursor::new()
         .captures(query, tree.root_node(), source.as_bytes())
         .for_each(|(x, _)| {
             if let Some(capture) = x.captures.last() {
-                query_of_node.insert(capture.node.id(), capture.index as usize);
+                query_map.insert(capture.node.id().into(), capture.index as usize);
             }
         });
 }

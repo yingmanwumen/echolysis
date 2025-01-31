@@ -8,7 +8,7 @@ use tree_sitter::{Node, Tree};
 use crate::{
     languages::NodeTaste,
     utils::hash::{merge_structure_hash, ADashMap, FxDashMap},
-    SupportedLanguage,
+    Id, SupportedLanguage,
 };
 
 use super::Engine;
@@ -29,16 +29,16 @@ impl Engine {
     pub(super) fn merkle_hash(
         language: &SupportedLanguage,
         trees: &ADashMap<Arc<String>, Tree>,
-        query_of_node: FxDashMap<usize, usize>,
-        sources: AHashMap<Arc<String>, &str>,
-    ) -> FxDashMap<u64, FxHashSet<usize>> {
+        query_map: &FxDashMap<Id, usize>,
+        sources: &AHashMap<Arc<String>, &str>,
+    ) -> FxDashMap<u64, FxHashSet<Id>> {
         let hashmap = FxDashMap::default();
 
         trees.par_iter().for_each(|tree| {
             Self::do_merkle_hash(
                 language,
                 tree.value().root_node(),
-                &query_of_node,
+                query_map,
                 &hashmap,
                 // SAFETY: We know the source is there
                 sources.get(tree.key()).unwrap().as_bytes(),
@@ -50,8 +50,8 @@ impl Engine {
     fn do_merkle_hash(
         language: &SupportedLanguage,
         node: Node<'_>,
-        query_of_node: &FxDashMap<usize, usize>,
-        hash_map: &FxDashMap<u64, FxHashSet<usize>>,
+        query_of_node: &FxDashMap<Id, usize>,
+        hash_map: &FxDashMap<u64, FxHashSet<Id>>,
         source: &[u8],
     ) -> u64 {
         if node.is_extra()
@@ -64,7 +64,7 @@ impl Engine {
         if node.child_count() == 0 {
             return language.simple_hash_node(
                 node,
-                query_of_node.get(&node.id()).map(|x| *x.value()),
+                query_of_node.get(&node.id().into()).map(|x| *x.value()),
                 source,
             );
         }
@@ -79,7 +79,10 @@ impl Engine {
         if language.node_taste(&node) == NodeTaste::Interesting
             && language.cognitive_complexity(node) >= language.complexity_threshold()
         {
-            hash_map.entry(combined_hash).or_default().insert(node.id());
+            hash_map
+                .entry(combined_hash)
+                .or_default()
+                .insert(node.id().into());
         }
         combined_hash
     }
