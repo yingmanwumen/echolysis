@@ -127,6 +127,11 @@ impl Engine {
         query_map: &FxDashMap<Id, usize>,
     ) {
         tree.preorder_traverse(|node| {
+            // SAFETY: We transmute the node lifetime to 'static because these nodes are stored
+            // in id_map and only accessed through Engine's methods. When a tree is removed via
+            // Engine::remove() or replaced via Engine::insert(), all associated nodes are properly
+            // cleaned up from id_map and other internal maps before the tree is dropped.
+            // This ensures we never access nodes from a dropped tree.
             let node: Node<'static> = unsafe { std::mem::transmute(node) };
             path_map.insert(node.id().into(), path.clone());
             id_map.insert(node.id().into(), node);

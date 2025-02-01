@@ -49,6 +49,27 @@ impl Engine {
         hashmap
     }
 
+    /// Computes a Merkle hash for a syntax tree node and its children recursively.
+    ///
+    /// # Arguments
+    ///
+    /// * `language` - The programming language configuration for parsing and hashing.
+    /// * `node` - The current syntax tree node being processed.
+    /// * `query_map` - Mapping of node IDs to their corresponding query indices.
+    /// * `hash_map` - Accumulator that stores interesting node IDs grouped by their hash values.
+    /// * `source` - The raw source code bytes being analyzed.
+    ///
+    /// # Returns
+    ///
+    /// A 64-bit hash value representing the combined structure of this node and its children
+    ///
+    /// # Algorithm
+    /// 1. Skip invalid or ignored nodes by returning 0
+    /// 2. For leaf nodes (no children), compute a simple hash based on node content
+    /// 3. For non-leaf nodes:
+    ///    - Recursively compute hashes for all children
+    ///    - Combine child hashes using a merge function
+    ///    - Store node ID in hash_map if node meets complexity criteria
     pub(super) fn merkle_hash(
         language: &SupportedLanguage,
         node: Node<'_>,

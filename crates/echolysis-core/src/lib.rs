@@ -7,6 +7,10 @@ use std::{hash::Hash, ops::Deref};
 
 pub use engine::Engine;
 
+/// # Purpose
+///
+/// This type exists to provide compile-time guarantees and type safety over raw `usize` values.
+/// It helps prevent accidental misuse of numeric values where an identifier is expected.
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Id {

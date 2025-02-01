@@ -9,6 +9,16 @@ use rustc_hash::FxHashSet;
 use crate::{utils::tree::Traverse, Id};
 
 impl Engine {
+    /// Removes a tree and all its associated data from the engine using the given path.
+    ///
+    /// This method performs the following operations:
+    /// 1. Looks up the tree in the tree map using the provided path
+    /// 2. If found, collects all node IDs in the tree
+    /// 3. Removes all associated data for these IDs
+    /// 4. Removes the tree itself from the tree map
+    ///
+    /// # Arguments
+    /// * `path` - An `Arc<String>` representing the path to the tree to be removed
     pub fn remove(&self, path: Arc<String>) {
         if let Entry::Occupied(tree) = self.tree_map.entry(path) {
             let mut ids = FxHashSet::default();
@@ -20,6 +30,19 @@ impl Engine {
         }
     }
 
+    /// Removes all data associated with the given set of IDs from the engine's internal maps.
+    ///
+    /// This method cleans up:
+    /// - Entries in the hash map (removing IDs from value sets)
+    /// - Empty entries from the hash map
+    /// - Entries from the ID map
+    /// - Entries from the path map
+    /// - Entries from the query map
+    ///
+    /// The cleanup of ID, path, and query maps is performed in parallel using rayon.
+    ///
+    /// # Arguments
+    /// * `ids` - A `FxHashSet<Id>` containing all IDs to be removed
     fn remove_by_ids(&self, ids: FxHashSet<Id>) {
         for mut entry in self.hash_map.iter_mut() {
             entry.value_mut().retain(|id| !ids.contains(id));
