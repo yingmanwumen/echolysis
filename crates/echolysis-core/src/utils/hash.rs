@@ -143,7 +143,7 @@ where
 ///
 /// A 64-bit hash value that represents the combined hash of `lhs` and `rhs`.
 pub fn merge_structure_hash(lhs: u64, rhs: u64) -> u64 {
-    let seed: u64 = 0x12345678;
+    let seed: u64 = 0x0123456789abcdef;
     let mut value = seed.wrapping_mul(1000003) ^ (lhs + 0x01);
     value = value.wrapping_mul(1000003) ^ (rhs + 0x02);
     value ^= 2;

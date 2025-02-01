@@ -1,12 +1,11 @@
 mod engine;
-mod languages;
 
+pub mod languages;
 pub mod utils;
 
 use std::{hash::Hash, ops::Deref};
 
 pub use engine::Engine;
-pub use languages::SupportedLanguage;
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Clone, Copy)]

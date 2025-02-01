@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use ahash::AHashMap;
-use echolysis_core::{Engine, SupportedLanguage};
+use echolysis_core::{languages::SupportedLanguage, utils::tree::NodeExt, Engine};
 
 #[global_allocator]
 static GLOBAL: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
@@ -53,11 +53,7 @@ pub fn main() {
             for _ in 0..node.start_position().column {
                 print!(" ");
             }
-            println!(
-                "{}",
-                node.utf8_text(sources.get(&path).unwrap().as_bytes())
-                    .unwrap()
-            );
+            println!("{}", node.text(sources.get(&path).unwrap().as_bytes()));
             if i != len - 1 {
                 println!("-------------------------------------------------------");
             }

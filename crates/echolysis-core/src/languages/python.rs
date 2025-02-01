@@ -1,6 +1,8 @@
 use phf::phf_set;
 use tree_sitter::{Parser, Query};
 
+use crate::utils::tree::NodeExt;
+
 use super::{Language, NodeTaste};
 
 pub struct Python {
@@ -76,7 +78,7 @@ impl Language for Python {
                 return self.hash_builder.hash_one(query);
             }
         }
-        self.hash_builder.hash_one(node.utf8_text(source).unwrap())
+        self.hash_builder.hash_one(node.text(source))
     }
 
     fn node_taste(&self, node: &tree_sitter::Node<'_>) -> NodeTaste {

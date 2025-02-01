@@ -1,6 +1,8 @@
 use phf::{phf_map, phf_set};
 use tree_sitter::{Parser, Query};
 
+use crate::utils::tree::NodeExt;
+
 use super::{Language, NodeTaste};
 
 pub struct Rust {
@@ -137,7 +139,7 @@ impl Language for Rust {
         if let Some(index) = query_index {
             let query = &self.query_names[index];
             if QUERY_NOT_TO_OBFUSCATE.contains(query) {
-                return self.hash_builder.hash_one(node.utf8_text(source).unwrap());
+                return self.hash_builder.hash_one(node.text(source));
             }
             if QUERY_TO_OBFUSCATE.contains(query) {
                 return self.hash_builder.hash_one(query);
@@ -146,7 +148,7 @@ impl Language for Rust {
         if NODES_TO_OBFUSCATE.contains(node.kind()) {
             return self.hash_builder.hash_one(node.kind());
         }
-        self.hash_builder.hash_one(node.utf8_text(source).unwrap())
+        self.hash_builder.hash_one(node.text(source))
     }
 
     fn node_taste(&self, node: &tree_sitter::Node<'_>) -> NodeTaste {

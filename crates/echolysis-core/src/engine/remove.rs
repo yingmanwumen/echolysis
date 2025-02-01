@@ -6,13 +6,13 @@ use dashmap::Entry;
 use rayon::prelude::*;
 use rustc_hash::FxHashSet;
 
-use crate::{utils::tree::preorder_traverse, Id};
+use crate::{utils::tree::Traverse, Id};
 
 impl Engine {
     pub fn remove(&self, path: Arc<String>) {
         if let Entry::Occupied(tree) = self.tree_map.entry(path) {
             let mut ids = FxHashSet::default();
-            preorder_traverse(tree.get().root_node(), |node| {
+            tree.get().preorder_traverse(|node| {
                 ids.insert(Id::from(node.id()));
             });
             self.remove_by_ids(ids);

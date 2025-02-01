@@ -7,8 +7,9 @@ use tree_sitter::{Node, Tree};
 
 use crate::{
     languages::NodeTaste,
+    languages::SupportedLanguage,
     utils::hash::{merge_structure_hash, ADashMap, FxDashMap},
-    Id, SupportedLanguage,
+    Id,
 };
 
 use super::Engine;
@@ -35,14 +36,15 @@ impl Engine {
         let hashmap = FxDashMap::default();
 
         trees.par_iter().for_each(|tree| {
-            Self::merkle_hash(
-                language,
-                tree.value().root_node(),
-                query_map,
-                &hashmap,
-                // SAFETY: We know the source is there
-                sources.get(tree.key()).unwrap().as_bytes(),
-            );
+            if let Some(source) = sources.get(tree.key()) {
+                Self::merkle_hash(
+                    language,
+                    tree.value().root_node(),
+                    query_map,
+                    &hashmap,
+                    source.as_bytes(),
+                );
+            }
         });
         hashmap
     }

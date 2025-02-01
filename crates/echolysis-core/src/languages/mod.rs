@@ -45,7 +45,7 @@ pub trait Language {
     fn query(&self) -> &Query;
     fn parser(&self) -> Parser;
     fn simple_hash_node(&self, node: Node<'_>, query_index: Option<usize>, source: &[u8]) -> u64;
-    fn node_taste(&self, node: &tree_sitter::Node<'_>) -> NodeTaste;
+    fn node_taste(&self, node: &Node<'_>) -> NodeTaste;
     fn cognitive_complexity(&self, node: Node<'_>) -> f64;
 
     fn complexity_threshold(&self) -> f64 {

@@ -11,11 +11,12 @@ use streaming_iterator::StreamingIterator;
 use tree_sitter::{Node, Query, QueryCursor, Tree};
 
 use crate::{
+    languages::SupportedLanguage,
     utils::{
         hash::{ADashMap, FxDashMap, FxDashSet},
-        tree::{children_set, preorder_traverse},
+        tree::{NodeExt, Traverse},
     },
-    Id, SupportedLanguage,
+    Id,
 };
 
 pub struct Engine {
@@ -81,7 +82,7 @@ impl Engine {
             }
             for &node in nodes.value() {
                 if let Some(node) = self.get_node_by_id(node) {
-                    children_set(node).into_iter().for_each(|child| {
+                    node.all_children().into_iter().for_each(|child| {
                         children.insert(child);
                     });
                 }
@@ -125,7 +126,7 @@ impl Engine {
         query: &Query,
         query_map: &FxDashMap<Id, usize>,
     ) {
-        preorder_traverse(tree.root_node(), |node| {
+        tree.preorder_traverse(|node| {
             let node: Node<'static> = unsafe { std::mem::transmute(node) };
             path_map.insert(node.id().into(), path.clone());
             id_map.insert(node.id().into(), node);
