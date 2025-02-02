@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use ahash::AHashMap;
-use echolysis_core::{languages::SupportedLanguage, utils::tree::NodeExt, Engine};
+use echolysis_core::{languages::SupportedLanguage, Engine};
 
 #[global_allocator]
 static GLOBAL: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
@@ -33,27 +33,18 @@ pub fn main() {
     let duplicates = engine.detect_duplicates();
     let dtected = std::time::Instant::now();
 
-    let language = engine.language();
-
     for dup in &duplicates {
         println!("=======================================================");
         let len = dup.len();
-        for (i, &id) in dup.iter().enumerate() {
-            let node = engine.get_node_by_id(id).unwrap();
-            let path = engine.get_path_by_id(id).unwrap();
-            let start = node.start_position().row + 1;
-            let end = node.end_position().row + 1;
+        for (i, (path, (start, end))) in dup.iter().enumerate() {
+            let start_row = start.row + 1;
+            let end_row = end.row + 1;
             println!(
-                "{}:{} {} lines long, cognitive complexity: {}",
+                "{}:{} {} lines long",
                 path,
-                start,
-                end - start + 1,
-                language.cognitive_complexity(node)
+                start_row,
+                end_row - start_row + 1,
             );
-            for _ in 0..node.start_position().column {
-                print!(" ");
-            }
-            println!("{}", node.text(sources.get(&path).unwrap().as_bytes()));
             if i != len - 1 {
                 println!("-------------------------------------------------------");
             }

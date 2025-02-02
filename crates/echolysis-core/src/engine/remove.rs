@@ -26,6 +26,8 @@ impl Engine {
                 ids.insert(Id::from(node.id()));
             });
             self.remove_by_ids(ids);
+            // NOTE: This guard is essential!!!
+            let _guard = self.protecting_guard.lock().unwrap();
             tree.remove();
         }
     }

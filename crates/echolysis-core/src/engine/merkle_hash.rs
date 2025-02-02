@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use ahash::AHashMap;
 use rayon::prelude::*;
@@ -32,81 +32,88 @@ impl Engine {
         trees: &ADashMap<Arc<String>, Tree>,
         query_map: &FxDashMap<Id, usize>,
         sources: &AHashMap<Arc<String>, &str>,
+        protecting: Arc<Mutex<()>>,
     ) -> FxDashMap<u64, FxHashSet<Id>> {
         let hashmap = FxDashMap::default();
 
         trees.par_iter().for_each(|tree| {
             if let Some(source) = sources.get(tree.key()) {
-                Self::merkle_hash(
+                Self::merkle_hash_without_recursion(
                     language,
                     tree.value().root_node(),
                     query_map,
                     &hashmap,
                     source.as_bytes(),
+                    protecting.clone(),
                 );
             }
         });
         hashmap
     }
 
-    /// Computes a Merkle hash for a syntax tree node and its children recursively.
-    ///
-    /// # Arguments
-    ///
-    /// * `language` - The programming language configuration for parsing and hashing.
-    /// * `node` - The current syntax tree node being processed.
-    /// * `query_map` - Mapping of node IDs to their corresponding query indices.
-    /// * `hash_map` - Accumulator that stores interesting node IDs grouped by their hash values.
-    /// * `source` - The raw source code bytes being analyzed.
-    ///
-    /// # Returns
-    ///
-    /// A 64-bit hash value representing the combined structure of this node and its children
-    ///
-    /// # Algorithm
-    /// 1. Skip invalid or ignored nodes by returning 0
-    /// 2. For leaf nodes (no children), compute a simple hash based on node content
-    /// 3. For non-leaf nodes:
-    ///    - Recursively compute hashes for all children
-    ///    - Combine child hashes using a merge function
-    ///    - Store node ID in hash_map if node meets complexity criteria
-    pub(super) fn merkle_hash(
+    pub(super) fn merkle_hash_without_recursion(
         language: &SupportedLanguage,
-        node: Node<'_>,
+        root: Node<'_>,
         query_map: &FxDashMap<Id, usize>,
         hash_map: &FxDashMap<u64, FxHashSet<Id>>,
         source: &[u8],
+        protecting: Arc<Mutex<()>>,
     ) -> u64 {
-        if node.is_extra()
-            || node.is_missing()
-            || node.is_error()
-            || language.node_taste(&node) == NodeTaste::Ignored
-        {
-            return 0;
+        let _guard = protecting.lock().unwrap();
+        // (node, combined_hash, visited_children_count)
+        let mut stack = vec![(root, 0u64, 0usize)];
+        let result_map = FxDashMap::default();
+
+        while let Some((node, combined_hash, visited_count)) = stack.pop() {
+            if node.is_extra()
+                || node.is_missing()
+                || node.is_error()
+                || language.node_taste(&node) == NodeTaste::Ignored
+            {
+                result_map.insert(node.id(), 0);
+                continue;
+            }
+
+            if node.child_count() == 0 {
+                let hash = language.simple_hash_node(
+                    node,
+                    query_map.get(&node.id().into()).map(|x| *x.value()),
+                    source,
+                );
+                result_map.insert(node.id(), hash);
+                continue;
+            }
+
+            let mut cursor = node.walk();
+            let children: Vec<_> = node.children(&mut cursor).collect();
+
+            if visited_count == 0 {
+                stack.push((node, combined_hash, children.len()));
+                for child in children.into_iter().rev() {
+                    stack.push((child, 0, 0));
+                }
+                continue;
+            }
+
+            let mut final_hash = combined_hash;
+            for child in children {
+                if let Some(child_hash) = result_map.get(&child.id()) {
+                    final_hash = merge_structure_hash(final_hash, *child_hash);
+                }
+            }
+
+            if language.node_taste(&node) == NodeTaste::Interesting
+                && language.cognitive_complexity(node) >= language.complexity_threshold()
+            {
+                hash_map
+                    .entry(final_hash)
+                    .or_default()
+                    .insert(node.id().into());
+            }
+
+            result_map.insert(node.id(), final_hash);
         }
-        if node.child_count() == 0 {
-            return language.simple_hash_node(
-                node,
-                query_map.get(&node.id().into()).map(|x| *x.value()),
-                source,
-            );
-        }
-        let mut combined_hash: u64 = 0;
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            combined_hash = merge_structure_hash(
-                combined_hash,
-                Self::merkle_hash(language, child, query_map, hash_map, source),
-            )
-        }
-        if language.node_taste(&node) == NodeTaste::Interesting
-            && language.cognitive_complexity(node) >= language.complexity_threshold()
-        {
-            hash_map
-                .entry(combined_hash)
-                .or_default()
-                .insert(node.id().into());
-        }
-        combined_hash
+
+        result_map.get(&root.id()).map(|x| *x.value()).unwrap_or(0)
     }
 }

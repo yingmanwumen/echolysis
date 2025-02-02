@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tower_lsp::lsp_types;
 
@@ -17,19 +17,22 @@ pub fn to_lsp_range(pos: &TSRange) -> lsp_types::Range {
     }
 }
 
-pub fn get_all_files_under_folder(folder: &PathBuf) -> Vec<PathBuf> {
-    // TODO: ignore some file patterns here
-    fn do_get_all_files_under_folder(folder: &PathBuf) -> Option<Vec<PathBuf>> {
-        let mut files = Vec::new();
-        for entry in std::fs::read_dir(folder).ok()?.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                files.extend(get_all_files_under_folder(&path));
-            } else if path.is_file() {
-                files.push(path);
+pub fn get_all_files_under_folder(folder: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let mut dirs_to_scan = vec![folder.to_path_buf()];
+
+    while let Some(current_dir) = dirs_to_scan.pop() {
+        if let Ok(entries) = std::fs::read_dir(&current_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs_to_scan.push(path);
+                } else if path.is_file() {
+                    files.push(path);
+                }
             }
         }
-        Some(files)
     }
-    do_get_all_files_under_folder(folder).unwrap_or_default()
+
+    files
 }

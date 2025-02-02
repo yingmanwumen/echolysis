@@ -20,16 +20,8 @@ impl Server {
                         .map(|group| {
                             group
                                 .into_iter()
-                                .filter_map(|id| {
-                                    let node = engine.get_node_by_id(id)?;
-                                    let path = engine.get_path_by_id(id)?;
-                                    Some((
-                                        path.as_ref().to_string(),
-                                        TSRange {
-                                            start: node.start_position(),
-                                            end: node.end_position(),
-                                        },
-                                    ))
+                                .map(|(path, (start, end))| {
+                                    (path.to_string(), TSRange { start, end })
                                 })
                                 .collect::<Vec<_>>()
                         })

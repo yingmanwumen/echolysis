@@ -2,13 +2,13 @@ mod insert;
 mod merkle_hash;
 mod remove;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use ahash::AHashMap;
 use rayon::prelude::*;
 use rustc_hash::FxHashSet;
 use streaming_iterator::StreamingIterator;
-use tree_sitter::{Node, Query, QueryCursor, Tree};
+use tree_sitter::{Node, Point, Query, QueryCursor, Tree};
 
 use crate::{
     languages::SupportedLanguage,
@@ -26,7 +26,10 @@ pub struct Engine {
     path_map: FxDashMap<Id, Arc<String>>,
     hash_map: FxDashMap<u64, FxHashSet<Id>>,
     query_map: FxDashMap<Id, usize>,
+    protecting_guard: Arc<Mutex<()>>,
 }
+
+pub type DuplicatedGroup = Vec<(Arc<String>, (Point, Point))>;
 
 impl Engine {
     pub fn new(language: SupportedLanguage, sources: Option<AHashMap<Arc<String>, &str>>) -> Self {
@@ -34,6 +37,7 @@ impl Engine {
         let path_map = FxDashMap::default();
         let tree_map = ADashMap::default();
         let query_map = FxDashMap::default();
+        let protecting_tree = Arc::new(Mutex::new(()));
 
         if let Some(sources) = sources {
             let query = language.query();
@@ -53,7 +57,13 @@ impl Engine {
                 }
             });
 
-            let hash_map = Self::merkle_hash_trees(&language, &tree_map, &query_map, &sources);
+            let hash_map = Self::merkle_hash_trees(
+                &language,
+                &tree_map,
+                &query_map,
+                &sources,
+                protecting_tree.clone(),
+            );
             Self {
                 language,
                 tree_map,
@@ -61,6 +71,7 @@ impl Engine {
                 hash_map,
                 path_map,
                 query_map,
+                protecting_guard: protecting_tree,
             }
         } else {
             Self {
@@ -70,11 +81,13 @@ impl Engine {
                 path_map,
                 query_map,
                 hash_map: FxDashMap::default(),
+                protecting_guard: protecting_tree,
             }
         }
     }
 
-    pub fn detect_duplicates(&self) -> Vec<Vec<Id>> {
+    pub fn detect_duplicates(&self) -> Vec<DuplicatedGroup> {
+        let _guard = self.protecting_guard.lock().unwrap();
         let children = FxDashSet::default();
         self.hash_map.par_iter().for_each(|nodes| {
             if nodes.value().len() < 2 {
@@ -94,7 +107,13 @@ impl Engine {
                 let group: Vec<_> = nodes
                     .iter()
                     .filter(|node| !children.contains(node))
-                    .copied()
+                    .filter_map(|&id| {
+                        let node = self.get_node_by_id(id)?;
+                        Some((
+                            self.get_path_by_id(id)?,
+                            (node.start_position(), node.end_position()),
+                        ))
+                    })
                     .collect();
                 if group.len() > 1 {
                     Some(group)
@@ -105,11 +124,11 @@ impl Engine {
             .collect()
     }
 
-    pub fn get_node_by_id(&self, id: Id) -> Option<Node<'static>> {
+    pub(crate) fn get_node_by_id(&self, id: Id) -> Option<Node<'static>> {
         self.id_map.get(&id).map(|x| *x.value())
     }
 
-    pub fn get_path_by_id(&self, id: Id) -> Option<Arc<String>> {
+    pub(crate) fn get_path_by_id(&self, id: Id) -> Option<Arc<String>> {
         self.path_map.get(&id).map(|x| x.value().clone())
     }
 
@@ -132,6 +151,8 @@ impl Engine {
             // Engine::remove() or replaced via Engine::insert(), all associated nodes are properly
             // cleaned up from id_map and other internal maps before the tree is dropped.
             // This ensures we never access nodes from a dropped tree.
+            //
+            // TODO: Waiting for a better way to handle this.
             let node: Node<'static> = unsafe { std::mem::transmute(node) };
             path_map.insert(node.id().into(), path.clone());
             id_map.insert(node.id().into(), node);
