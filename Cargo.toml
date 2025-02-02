@@ -2,7 +2,7 @@
 members = [
     "crates/echolysis-cli",
     "crates/echolysis-core",
-    "crates/echolysis-lsp",
+    "crates/echolysis-lsp"
 ]
 resolver = "2"
 

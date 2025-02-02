@@ -12,6 +12,11 @@ impl LanguageServer for Server {
         &self,
         params: lsp_types::InitializeParams,
     ) -> jsonrpc::Result<lsp_types::InitializeResult> {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(8) // TODO: Make it configurable
+            .build_global()
+            .unwrap();
+
         self.watch(&params.workspace_folders.unwrap_or_default())
             .await;
 
@@ -56,6 +61,15 @@ impl LanguageServer for Server {
         }
     }
 
+    async fn did_close(&self, params: lsp_types::DidCloseTextDocumentParams) {
+        if self.is_stopped() {
+            return;
+        }
+        if let Ok(path) = params.text_document.uri.to_file_path() {
+            self.clear_diagnostic(&[path]).await;
+        }
+    }
+
     async fn did_change(&self, params: lsp_types::DidChangeTextDocumentParams) {
         if self.is_stopped() {
             return;
@@ -84,40 +98,6 @@ impl LanguageServer for Server {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
 
-        self.client
-            .log_message(
-                lsp_types::MessageType::ERROR,
-                format!(
-                    "Goto definition requested at uri: {:?}, position: {:?}",
-                    uri, position
-                ),
-            )
-            .await;
-
-        // Log all stored locations for debugging
-        self.client
-            .log_message(
-                lsp_types::MessageType::ERROR,
-                format!(
-                    "Total stored location entries: {}",
-                    self.duplicate_locations.len()
-                ),
-            )
-            .await;
-
-        for entry in self.duplicate_locations.iter() {
-            self.client
-                .log_message(
-                    lsp_types::MessageType::ERROR,
-                    format!(
-                        "Stored range: {:?} -> {} locations",
-                        entry.key().range,
-                        entry.value().len()
-                    ),
-                )
-                .await;
-        }
-
         // Find a range that contains the clicked position
         let matching_location = self.duplicate_locations.iter().find(|entry| {
             entry.key().uri == uri
@@ -131,25 +111,11 @@ impl LanguageServer for Server {
 
         if let Some(entry) = matching_location {
             let locations = entry.value();
-            self.client
-                .log_message(
-                    lsp_types::MessageType::ERROR,
-                    format!("Found {} locations", locations.len()),
-                )
-                .await;
 
             if !locations.is_empty() {
                 return Ok(Some(GotoDefinitionResponse::Array(locations.clone())));
             }
-        } else {
-            self.client
-                .log_message(
-                    lsp_types::MessageType::ERROR,
-                    "No locations found".to_string(),
-                )
-                .await;
         }
-
         Ok(None)
     }
 }

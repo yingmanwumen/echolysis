@@ -66,7 +66,7 @@ impl Server {
         let (tx, rx) = tokio::sync::mpsc::channel(8);
         let tx_clone = tx.clone();
 
-        let watcher = FsWatcher::new::<notify::PollWatcher>(
+        let watcher = FsWatcher::new::<notify::RecommendedWatcher>(
             Duration::from_millis(500),
             Box::new(move |evt| {
                 let _ = tx_clone.blocking_send(evt);

@@ -43,6 +43,18 @@ where
     }
 }
 
+impl<K, V> IntoIterator for ADashMap<K, V>
+where
+    K: std::cmp::Eq + std::hash::Hash,
+{
+    type Item = (K, V);
+    type IntoIter = dashmap::iter::OwningIter<K, V, ahash::RandomState>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
+    }
+}
+
 impl<K, V> From<DashMap<K, V, ahash::RandomState>> for ADashMap<K, V>
 where
     K: std::cmp::Eq + std::hash::Hash,
@@ -91,6 +103,18 @@ where
     }
 }
 
+impl<K, V> IntoIterator for FxDashMap<K, V>
+where
+    K: std::cmp::Eq + std::hash::Hash,
+{
+    type Item = (K, V);
+    type IntoIter = dashmap::iter::OwningIter<K, V, FxBuildHasher>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
+    }
+}
+
 pub struct FxDashSet<K>
 where
     K: std::cmp::Eq + std::hash::Hash,
@@ -126,6 +150,18 @@ where
         Self {
             inner: DashSet::with_hasher(FxBuildHasher),
         }
+    }
+}
+
+impl<K> IntoIterator for FxDashSet<K>
+where
+    K: std::cmp::Eq + std::hash::Hash,
+{
+    type Item = K;
+    type IntoIter = dashmap::iter_set::OwningIter<K, FxBuildHasher>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
     }
 }
 

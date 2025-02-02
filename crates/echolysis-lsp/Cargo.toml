@@ -10,5 +10,6 @@ tower-lsp = "0.20"
 notify = "8.0.0"
 parking_lot = "0.12"
 rayon.workspace = true
+rpmalloc.workspace = true
 
 echolysis-core = { path = "../echolysis-core" }

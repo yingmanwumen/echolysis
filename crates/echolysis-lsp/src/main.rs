@@ -2,6 +2,9 @@ use server::Server;
 
 mod server;
 
+#[global_allocator]
+static GLOBAL: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
+
 #[tokio::main]
 async fn main() {
     let stdin = tokio::io::stdin();
