@@ -39,15 +39,18 @@ Echolysis addresses these challenges by:
 ## Current Status
 
 Echolysis currently supports:
-- Rust
-- Python
+
+- [x] Rust
+- [x] Python
+- [ ] C/C++
+- [ ] ...
 
 More languages will be added in the future.
 
 ## Components
 
 - `echolysis-core`: Core duplicate detection engine
-- `echolysis-cli`: Command line interface
+- `echolysis-cli`: Command line interface (TODO)
 - `echolysis-lsp`: Language Server Protocol implementation
 
 ## License

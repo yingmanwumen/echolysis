@@ -78,7 +78,7 @@ impl Server {
             severity: Some(lsp_types::DiagnosticSeverity::WARNING),
             source: Some("echolysis".to_string()),
             message: format!(
-                "Duplicated code fragment found, {} lines",
+                "Duplicated code fragments found, {} lines",
                 current_pos.end.row - current_pos.start.row + 1
             ),
             related_information: Some(

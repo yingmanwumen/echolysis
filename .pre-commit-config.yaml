@@ -39,11 +39,6 @@ repos:
       - id: cargo-sort
 
 
-  - repo: https://github.com/DevinR528/cargo-sort
-    rev: v1.1.0
-    hooks:
-      - id: cargo-sort
-
   # - repo: https://github.com/est31/cargo-udeps
   #   rev: v0.1.54
   #   hooks:
