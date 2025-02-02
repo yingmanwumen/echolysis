@@ -12,6 +12,12 @@ pub enum SupportedLanguage {
     Rust(Rust),
 }
 
+impl SupportedLanguage {
+    pub fn supported_languages() -> Vec<&'static str> {
+        vec!["python", "rust"]
+    }
+}
+
 impl TryFrom<&str> for SupportedLanguage {
     type Error = ();
     fn try_from(value: &str) -> Result<SupportedLanguage, ()> {
