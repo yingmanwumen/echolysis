@@ -54,12 +54,6 @@ More languages will be added in the future.
 
 [MIT License](LICENSE)
 
-## Project Statistics
-
-[![Activity](https://repobeats.axiom.co/api/embed/your-repobeats-id.svg "Repobeats analytics image")](https://github.com/yingmanwumen/echolysis/pulse)
-
-[![Contributors over time](https://contributor-graph-api.apiseven.com/contributors-svg?chart=contributorOverTime&repo=yingmanwumen/echolysis)](https://www.apiseven.com/en/contributor-graph?chart=contributorOverTime&repo=yingmanwumen/echolysis)
-
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=yingmanwumen/echolysis&type=Date)](https://star-history.com/#yingmanwumen/echolysis&Date)
