@@ -6,6 +6,7 @@ pub mod utils;
 use std::{hash::Hash, ops::Deref};
 
 pub use engine::Engine;
+pub use tree_sitter;
 
 /// # Purpose
 ///

@@ -1,4 +1,5 @@
 use std::{
+    hash::{Hash, Hasher},
     path::PathBuf,
     sync::{atomic::AtomicBool, Arc},
     time::Duration,
@@ -6,15 +7,37 @@ use std::{
 
 use echolysis_core::utils::hash::{ADashMap, FxDashSet};
 use fs_watcher::FsWatcher;
-use rayon::prelude::*;
 use router::Router;
 use tower_lsp::lsp_types;
 
+mod diagnostic;
 mod fs_watcher;
 mod language_server;
 mod log;
 mod on_event;
 mod router;
+
+#[derive(Debug, Clone, Eq)]
+struct LocationRange {
+    uri: lsp_types::Url,
+    range: lsp_types::Range,
+}
+
+impl PartialEq for LocationRange {
+    fn eq(&self, other: &Self) -> bool {
+        self.uri == other.uri && self.range == other.range
+    }
+}
+
+impl Hash for LocationRange {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.uri.as_str().hash(state);
+        self.range.start.line.hash(state);
+        self.range.start.character.hash(state);
+        self.range.end.line.hash(state);
+        self.range.end.character.hash(state);
+    }
+}
 
 pub struct Server {
     client: tower_lsp::Client,
@@ -24,6 +47,14 @@ pub struct Server {
     router: Router,
     file_map: ADashMap<PathBuf, &'static str>,
     diagnostics_record: FxDashSet<lsp_types::Url>,
+    duplicate_locations: ADashMap<LocationRange, Vec<lsp_types::Location>>,
+}
+
+// Helper struct to hold position information
+#[derive(Debug)]
+struct FilePosition {
+    start: echolysis_core::tree_sitter::Point,
+    end: echolysis_core::tree_sitter::Point,
 }
 
 impl Server {
@@ -68,6 +99,7 @@ impl Server {
             router: Router::new(),
             file_map: ADashMap::default(),
             diagnostics_record: FxDashSet::default(),
+            duplicate_locations: ADashMap::default(),
         });
 
         Self::run_fs_event_loop(server.clone(), fs_evt_rx);
@@ -83,122 +115,5 @@ impl Server {
         self.stopped
             .store(true, std::sync::atomic::Ordering::SeqCst);
         self.clear().await;
-    }
-
-    async fn push_diagnostic(&self) {
-        let duplicates: Vec<_> = self
-            .router
-            .engines()
-            .par_iter()
-            .map(|engine| {
-                let duplicates = engine.detect_duplicates();
-                (
-                    engine.key().clone(),
-                    duplicates
-                        .into_iter()
-                        .map(|group| {
-                            group
-                                .into_iter()
-                                .filter_map(|id| {
-                                    let node = engine.get_node_by_id(id)?;
-                                    let start = node.start_position();
-                                    let end = node.end_position();
-                                    Some((engine.get_path_by_id(id)?, (start, end)))
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                        .collect::<Vec<_>>(),
-                )
-            })
-            .collect();
-        self.log_info(format!("publishing: {:?}", duplicates)).await;
-
-        let mut diagnostics_map: std::collections::HashMap<
-            lsp_types::Url,
-            Vec<lsp_types::Diagnostic>,
-        > = std::collections::HashMap::new();
-
-        for (_, groups) in duplicates {
-            for group in groups {
-                for (file, (start, end)) in group.clone() {
-                    self.log_info(format!(
-                        "{:?}",
-                        lsp_types::Url::from_file_path(file.as_str())
-                    ))
-                    .await;
-                    if let Ok(uri) = lsp_types::Url::from_file_path(file.as_str()) {
-                        let diagnostics = diagnostics_map.entry(uri).or_default();
-                        diagnostics.push(lsp_types::Diagnostic {
-                            range: lsp_types::Range {
-                                start: lsp_types::Position::new(
-                                    start.row as u32,
-                                    start.column as u32,
-                                ),
-                                end: lsp_types::Position::new(end.row as u32, end.column as u32),
-                            },
-                            severity: Some(lsp_types::DiagnosticSeverity::WARNING),
-                            source: Some("echolysis".to_string()),
-                            message: format!(
-                                "Duplicated code fragment found, {} lines",
-                                end.row - start.row + 1
-                            ),
-                            related_information: Some(
-                                group
-                                    .iter()
-                                    .filter_map(|(other_file, (other_start, other_end))| {
-                                        // 跳过当前文件，只显示其他文件的位置
-                                        if other_file == &file {
-                                            return None;
-                                        }
-
-                                        lsp_types::Url::from_file_path(other_file.as_str())
-                                            .ok()
-                                            .map(|other_uri| {
-                                                lsp_types::DiagnosticRelatedInformation {
-                                                    location: lsp_types::Location {
-                                                        uri: other_uri,
-                                                        range: lsp_types::Range {
-                                                            start: lsp_types::Position::new(
-                                                                other_start.row as u32,
-                                                                other_start.column as u32,
-                                                            ),
-                                                            end: lsp_types::Position::new(
-                                                                other_end.row as u32,
-                                                                other_end.column as u32,
-                                                            ),
-                                                        },
-                                                    },
-                                                    message: format!(
-                                                        "Similar code fragment ({} lines)",
-                                                        other_end.row - other_start.row + 1
-                                                    ),
-                                                }
-                                            })
-                                    })
-                                    .collect(),
-                            ),
-                            ..Default::default()
-                        });
-                    }
-                }
-            }
-        }
-
-        if diagnostics_map.is_empty() {
-            for item in self.diagnostics_record.iter() {
-                self.client
-                    .publish_diagnostics(item.key().clone(), vec![], None)
-                    .await;
-            }
-            self.diagnostics_record.clear();
-            return;
-        }
-
-        for (uri, diagnostics) in diagnostics_map {
-            self.diagnostics_record.insert(uri.clone());
-            self.client
-                .publish_diagnostics(uri, diagnostics, None)
-                .await;
-        }
     }
 }

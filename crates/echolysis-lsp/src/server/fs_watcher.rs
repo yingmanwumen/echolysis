@@ -6,12 +6,28 @@ use tower_lsp::lsp_types;
 
 use super::Server;
 
+/// File system watcher for monitoring workspace folder changes
+///
+/// Provides functionality to:
+/// - Watch workspace folders for file changes
+/// - Handle file system events (create/modify/delete)
+/// - Manage watched folder lifecycle
 pub struct FsWatcher {
+    /// The underlying file system watcher implementation
     watcher: Arc<Mutex<Box<dyn Watcher + Send>>>,
+    /// Set of currently watched folder paths
     folders: FxDashSet<PathBuf>,
 }
 
 impl FsWatcher {
+    /// Creates a new file system watcher instance
+    ///
+    /// # Arguments
+    /// * `interval` - Polling interval for the watcher
+    /// * `event_handler` - Callback for handling file system events
+    ///
+    /// # Type Parameters
+    /// * `T` - The concrete watcher implementation type
     pub fn new<T: Watcher + 'static + Send>(
         interval: Duration,
         event_handler: Box<dyn Fn(Result<notify::Event, notify::Error>) + Send>,
@@ -115,40 +131,53 @@ impl Server {
         }
     }
 
+    // Handle filesystem events for code duplication analysis
     async fn do_handle_fs_event(&self, event: notify::Event) {
         use notify::{event::*, EventKind};
 
+        // Early return for unsupported event types
+        let should_process = matches!(
+            event.kind,
+            EventKind::Create(_)
+                | EventKind::Modify(ModifyKind::Data(_))
+                | EventKind::Modify(ModifyKind::Metadata(MetadataKind::WriteTime))
+                | EventKind::Remove(_)
+        );
+
+        if !should_process {
+            return;
+        }
+
+        // Filter relevant paths (files that are not logs and tracked files)
         let paths: Vec<_> = event
             .paths
             .iter()
             .filter(|path| {
-                (path.is_file()
-                    && path
-                        .extension()
-                        .unwrap_or_default()
-                        .to_str()
-                        .unwrap_or_default()
-                        != "log")
-                    || self.file_map.contains_key(path.as_path())
+                let is_non_log_file = path.is_file()
+                    && (path.extension().and_then(|ext| ext.to_str()) != Some("log"));
+                // TODO: configurable file filter
+
+                is_non_log_file || self.file_map.contains_key(path.as_path())
             })
             .cloned()
             .collect();
+
         if paths.is_empty() {
             return;
         }
 
+        // Process the event based on its type
         match event.kind {
-            // Full update
             EventKind::Create(_)
             | EventKind::Modify(ModifyKind::Data(_))
             | EventKind::Modify(ModifyKind::Metadata(MetadataKind::WriteTime)) => {
-                self.on_insert(paths.into_iter().zip(std::iter::repeat(None)).collect())
-                    .await;
+                let files = paths.into_iter().map(|p| (p, None)).collect();
+                self.on_insert(files).await;
             }
             EventKind::Remove(_) => {
                 self.on_remove(paths).await;
             }
-            _ => (),
+            _ => unreachable!(),
         }
     }
 }
