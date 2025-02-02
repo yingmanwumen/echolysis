@@ -24,7 +24,7 @@ pub fn main() {
         .map(|(path, source)| (Arc::new(path), source.as_str()))
         .collect::<AHashMap<_, _>>();
     let engine = Engine::new(
-        SupportedLanguage::try_from("rust").unwrap(),
+        SupportedLanguage::from_language_id("rust").unwrap(),
         Some(sources.clone()),
     );
     let indexed = std::time::Instant::now();

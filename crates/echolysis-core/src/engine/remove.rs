@@ -30,6 +30,20 @@ impl Engine {
         }
     }
 
+    pub fn remove_manay(&self, paths: Vec<Arc<String>>) {
+        paths.into_par_iter().for_each(|path| {
+            self.remove(path);
+        });
+    }
+
+    pub fn remove_all(&self) {
+        self.tree_map.clear();
+        self.hash_map.clear();
+        self.id_map.clear();
+        self.path_map.clear();
+        self.query_map.clear();
+    }
+
     /// Removes all data associated with the given set of IDs from the engine's internal maps.
     ///
     /// This method cleans up:

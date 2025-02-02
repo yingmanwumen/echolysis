@@ -16,16 +16,13 @@ impl SupportedLanguage {
     pub fn supported_languages() -> Vec<&'static str> {
         vec!["python", "rust"]
     }
-}
 
-impl TryFrom<&str> for SupportedLanguage {
-    type Error = ();
-    fn try_from(value: &str) -> Result<SupportedLanguage, ()> {
-        Ok(match value {
-            "rust" => SupportedLanguage::Rust(Rust::default()),
-            "python" => SupportedLanguage::Python(Python::default()),
-            _ => return Err(()),
-        })
+    pub fn from_language_id<T: AsRef<str>>(language_id: T) -> Option<SupportedLanguage> {
+        match language_id.as_ref() {
+            "python" => Some(SupportedLanguage::Python(Python::default())),
+            "rust" => Some(SupportedLanguage::Rust(Rust::default())),
+            _ => None,
+        }
     }
 }
 

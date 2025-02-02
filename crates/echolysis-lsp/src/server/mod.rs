@@ -4,15 +4,20 @@ use std::{
 };
 
 use fs_watcher::FsWatcher;
+use router::Router;
 
 mod fs_watcher;
+mod handle_event;
 mod language_server;
 mod log;
+mod router;
 
 pub struct Server {
     client: tower_lsp::Client,
     fs_watcher: FsWatcher,
     stopped: AtomicBool,
+    #[allow(unused)]
+    router: Router,
 }
 
 impl Server {
@@ -54,6 +59,7 @@ impl Server {
             client,
             fs_watcher,
             stopped: AtomicBool::new(false),
+            router: Router::new(),
         });
 
         Self::run_fs_event_loop(server.clone(), fs_evt_rx);

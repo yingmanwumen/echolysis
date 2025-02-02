@@ -64,12 +64,13 @@ impl Server {
             .filter_map(|f| f.uri.to_file_path().ok())
             .collect();
 
-        if !folders.is_empty() {
-            self.log_info(format!("watching folders: {:?}", folders))
-                .await;
-            self.fs_watcher.watch(&folders);
-            // TODO
+        if folders.is_empty() {
+            return;
         }
+        self.log_info(format!("watching folders: {:?}", folders))
+            .await;
+        self.fs_watcher.watch(&folders);
+        // TODO
     }
 
     pub(super) async fn unwatch(&self, folders: &[lsp_types::WorkspaceFolder]) {
@@ -78,17 +79,19 @@ impl Server {
             .filter_map(|f| f.uri.to_file_path().ok())
             .collect();
 
-        if !folders.is_empty() {
-            self.log_info(format!("unwatching folders: {:?}", folders))
-                .await;
-            self.fs_watcher.unwatch(&folders);
-            // TODO
+        if folders.is_empty() {
+            return;
         }
+        self.log_info(format!("unwatching folders: {:?}", folders))
+            .await;
+        self.fs_watcher.unwatch(&folders);
+        // TODO
     }
 
     pub(super) async fn clear(&self) {
         self.log_info("unwatching all folders").await;
         self.fs_watcher.clear();
+        // TODO
     }
 
     pub(super) async fn handle_fs_event(&self, event: Result<notify::Event, notify::Error>) {

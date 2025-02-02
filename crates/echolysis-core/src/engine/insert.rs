@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use rayon::prelude::*;
+
 use super::Engine;
 
 impl Engine {
@@ -61,5 +63,11 @@ impl Engine {
             );
             self.tree_map.insert(path, tree);
         }
+    }
+
+    pub fn insert_many(&self, paths: Vec<(Arc<String>, String)>) {
+        paths.into_par_iter().for_each(|(path, source)| {
+            self.insert(path, &source);
+        });
     }
 }

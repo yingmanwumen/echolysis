@@ -17,7 +17,6 @@ repos:
       - id: check-illegal-windows-names
       - id: check-json
       - id: check-merge-conflict
-      - id: check-shebang-scripts-are-executable
       - id: check-symlinks
       - id: check-toml
       - id: check-vcs-permalinks
