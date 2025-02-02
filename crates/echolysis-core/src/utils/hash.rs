@@ -1,5 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+pub use dashmap;
+
 use dashmap::{DashMap, DashSet};
 use rustc_hash::FxBuildHasher;
 

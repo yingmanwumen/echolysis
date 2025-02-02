@@ -1,3 +1,8 @@
+use std::{
+    sync::LazyLock,
+    time::{Duration, Instant},
+};
+
 use tower_lsp::{jsonrpc, lsp_types, LanguageServer};
 
 use super::Server;
@@ -8,38 +13,21 @@ impl LanguageServer for Server {
         &self,
         params: lsp_types::InitializeParams,
     ) -> jsonrpc::Result<lsp_types::InitializeResult> {
-        self.log_info(format!(
-            "root_dir: {:?}, workspace_dirs: {:?}",
-            params.root_uri, params.workspace_folders
-        ))
-        .await;
-
-        // Ok(lsp_types::InitializeResult {
-        //     capabilities: lsp_types::ServerCapabilities {
-        //         text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Options(
-        //             lsp_types::TextDocumentSyncOptions {
-        //                 open_close: Some(true),
-        //                 change: Some(lsp_types::TextDocumentSyncKind::INCREMENTAL),
-        //                 ..Default::default()
-        //             },
-        //         )),
-        //         ..Default::default()
-        //     },
-        //     server_info: Some(lsp_types::ServerInfo {
-        //         name: "echolysis-lsp".to_string(),
-        //         version: Some(env!("CARGO_PKG_VERSION").to_string()),
-        //     }),
-        // })
+        self.watch(&params.workspace_folders.unwrap_or_default())
+            .await;
 
         Ok(lsp_types::InitializeResult {
             capabilities: lsp_types::ServerCapabilities {
-                text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Options(
-                    lsp_types::TextDocumentSyncOptions {
-                        open_close: Some(true),
-                        change: Some(lsp_types::TextDocumentSyncKind::FULL),
-                        ..Default::default()
-                    },
+                text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Kind(
+                    lsp_types::TextDocumentSyncKind::FULL,
                 )),
+                workspace: Some(lsp_types::WorkspaceServerCapabilities {
+                    workspace_folders: Some(lsp_types::WorkspaceFoldersServerCapabilities {
+                        supported: Some(true),
+                        change_notifications: Some(lsp_types::OneOf::Left(true)),
+                    }),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             server_info: Some(lsp_types::ServerInfo {
@@ -50,57 +38,37 @@ impl LanguageServer for Server {
     }
 
     async fn shutdown(&self) -> jsonrpc::Result<()> {
+        self.stop().await;
+        // TODO
         Ok(())
     }
 
-    async fn did_open(&self, params: lsp_types::DidOpenTextDocumentParams) {
-        self.log_info(format!("textDocument/didOpen: {params:?}"))
-            .await;
-    }
-
     async fn did_change(&self, params: lsp_types::DidChangeTextDocumentParams) {
-        self.log_info(format!("textDocument/didChange: {params:?}"))
-            .await;
-    }
+        if self.is_stopped() {
+            return;
+        }
+        static LAST_CHANGE: LazyLock<parking_lot::Mutex<Instant>> =
+            LazyLock::new(|| parking_lot::Mutex::new(Instant::now()));
+        *LAST_CHANGE.lock() = Instant::now();
 
-    async fn diagnostic(
-        &self,
-        params: lsp_types::DocumentDiagnosticParams,
-    ) -> jsonrpc::Result<lsp_types::DocumentDiagnosticReportResult> {
-        self.log_info(format!("textDocument/diagnostics: {params:?}"))
-            .await;
-        Err(jsonrpc::Error::method_not_found())
-    }
+        tokio::time::sleep(Duration::from_millis(500)).await;
 
-    async fn workspace_diagnostic(
-        &self,
-        params: lsp_types::WorkspaceDiagnosticParams,
-    ) -> jsonrpc::Result<lsp_types::WorkspaceDiagnosticReportResult> {
-        self.log_info(format!("workspace/diagnostics: {params:?}"))
-            .await;
-        Err(jsonrpc::Error::method_not_found())
+        let elapsed = LAST_CHANGE.lock().elapsed();
+        if elapsed >= Duration::from_millis(500) {
+            self.log_info(format!("textDocument/didChange: {params:?}"))
+                .await;
+        }
     }
 
     async fn did_change_workspace_folders(
         &self,
         params: lsp_types::DidChangeWorkspaceFoldersParams,
     ) {
-        self.log_info(format!("workspace/didChangeWorkspaceFolders: {params:?}"))
-            .await;
-    }
-
-    async fn did_create_files(&self, params: lsp_types::CreateFilesParams) {
-        self.log_info(format!("workspace/didCreateFiles: {params:?}"))
-            .await;
-    }
-
-    async fn did_rename_files(&self, params: lsp_types::RenameFilesParams) {
-        self.log_info(format!("workspace/didRenameFiles: {params:?}"))
-            .await;
-    }
-
-    async fn did_delete_files(&self, params: lsp_types::DeleteFilesParams) {
-        self.log_info(format!("workspace/didDeleteFiles: {params:?}"))
-            .await;
+        if self.is_stopped() {
+            return;
+        }
+        self.unwatch(&params.event.removed).await;
+        self.watch(&params.event.added).await;
+        // TODO
     }
 }

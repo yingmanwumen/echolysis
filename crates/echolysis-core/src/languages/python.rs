@@ -16,7 +16,7 @@ const QUERY_TO_OBFUSCATE: phf::Set<&str> = phf_set! {
     "variable"
 };
 
-const INTERESTING_NODES: phf::Set<&str> = phf_set! {
+const PY_INTERESTING_NODES: phf::Set<&str> = phf_set! {
     "for_statement",
     "if_statement",
     "match_statement",
@@ -28,7 +28,7 @@ const INTERESTING_NODES: phf::Set<&str> = phf_set! {
     "class_definition",
 };
 
-const IGNORED_NODES: phf::Set<&str> = phf_set! {
+const PY_IGNORED_NODES: phf::Set<&str> = phf_set! {
     "comment",
 };
 
@@ -82,9 +82,9 @@ impl Language for Python {
     }
 
     fn node_taste(&self, node: &tree_sitter::Node<'_>) -> NodeTaste {
-        if INTERESTING_NODES.contains(node.kind()) {
+        if PY_INTERESTING_NODES.contains(node.kind()) {
             NodeTaste::Interesting
-        } else if IGNORED_NODES.contains(node.kind()) {
+        } else if PY_IGNORED_NODES.contains(node.kind()) {
             NodeTaste::Ignored
         } else {
             NodeTaste::Normal

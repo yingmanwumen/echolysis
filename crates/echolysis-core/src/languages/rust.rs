@@ -28,7 +28,7 @@ const NODES_TO_OBFUSCATE: phf::Set<&str> = phf_set! {
     "identifier"
 };
 
-const INTERESTING_NODES: phf::Set<&str> = phf_set! {
+const RUST_INTERESTING_NODES: phf::Set<&str> = phf_set! {
     "call_expression",
     "const_block",
     "for_expression",
@@ -42,7 +42,7 @@ const INTERESTING_NODES: phf::Set<&str> = phf_set! {
     "closure_expression",
 };
 
-const IGNORED_NODES: phf::Set<&str> = phf_set! {
+const RUST_IGNORED_NODES: phf::Set<&str> = phf_set! {
     "block_comment",
     "doc_comment",
     "line_comment",
@@ -152,9 +152,9 @@ impl Language for Rust {
     }
 
     fn node_taste(&self, node: &tree_sitter::Node<'_>) -> NodeTaste {
-        if INTERESTING_NODES.contains(node.kind()) {
+        if RUST_INTERESTING_NODES.contains(node.kind()) {
             NodeTaste::Interesting
-        } else if IGNORED_NODES.contains(node.kind()) {
+        } else if RUST_IGNORED_NODES.contains(node.kind()) {
             NodeTaste::Ignored
         } else {
             NodeTaste::Normal
