@@ -9,5 +9,6 @@ tokio = { version = "1.43.0", features = ["full"] }
 tower-lsp = "0.20"
 notify = "8.0.0"
 parking_lot = "0.12"
+rayon.workspace = true
 
 echolysis-core = { path = "../echolysis-core" }

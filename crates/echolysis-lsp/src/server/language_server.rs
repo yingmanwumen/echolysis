@@ -1,8 +1,3 @@
-use std::{
-    sync::LazyLock,
-    time::{Duration, Instant},
-};
-
 use tower_lsp::{jsonrpc, lsp_types, LanguageServer};
 
 use super::Server;
@@ -39,7 +34,6 @@ impl LanguageServer for Server {
 
     async fn shutdown(&self) -> jsonrpc::Result<()> {
         self.stop().await;
-        // TODO
         Ok(())
     }
 
@@ -47,15 +41,8 @@ impl LanguageServer for Server {
         if self.is_stopped() {
             return;
         }
-        static LAST_CHANGE: LazyLock<parking_lot::Mutex<Instant>> =
-            LazyLock::new(|| parking_lot::Mutex::new(Instant::now()));
-        *LAST_CHANGE.lock() = Instant::now();
-
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        let elapsed = LAST_CHANGE.lock().elapsed();
-        if elapsed >= Duration::from_millis(500) {
-            self.log_info(format!("textDocument/didChange: {params:?}"))
+        if let Ok(path) = params.text_document.uri.to_file_path() {
+            self.on_insert(vec![(path, Some(&params.content_changes[0].text))])
                 .await;
         }
     }
@@ -69,6 +56,5 @@ impl LanguageServer for Server {
         }
         self.unwatch(&params.event.removed).await;
         self.watch(&params.event.added).await;
-        // TODO
     }
 }

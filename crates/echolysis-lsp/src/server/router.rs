@@ -4,7 +4,7 @@ use std::{path::Path, sync::Arc};
 
 use echolysis_core::{
     languages::SupportedLanguage,
-    utils::{hash::ADashMap, language_id::file_extension_to_language_id},
+    utils::{hash::ADashMap, language_id::path_to_language_id},
     Engine,
 };
 
@@ -19,13 +19,20 @@ impl Router {
         }
     }
 
-    pub fn get_engine(&self, path: &Path) -> Option<Arc<Engine>> {
-        let language_id = file_extension_to_language_id(path).to_string();
-        let language = SupportedLanguage::from_language_id(&language_id)?;
+    pub fn engines(&self) -> &ADashMap<String, Arc<Engine>> {
+        &self.engines
+    }
 
+    pub fn get_engine_by_path(&self, path: &Path) -> Option<Arc<Engine>> {
+        let language_id = path_to_language_id(path).to_string();
+        self.get_engine_by_language_id(&language_id)
+    }
+
+    pub fn get_engine_by_language_id(&self, language_id: &str) -> Option<Arc<Engine>> {
+        let language = SupportedLanguage::from_language_id(language_id)?;
         Some(
             self.engines
-                .entry(language_id)
+                .entry(language_id.to_string())
                 .or_insert_with(|| Arc::new(Engine::new(language, None)))
                 .value()
                 .clone(),

@@ -1,34 +1,7 @@
 use std::path::Path;
 
-/// Converts a file extension to a standardized language identifier, primarily supporting
-/// tree-sitter compatible languages.
-///
-/// This function maps file extensions to their corresponding language identifiers that are
-/// commonly used with tree-sitter parsers. It handles a wide range of programming languages
-/// and file formats.
-///
-/// # Arguments
-///
-/// * `path` - A Path reference to the file
-///
-/// # Returns
-///
-/// * A static string representing the language identifier
-/// * Returns an empty string ("") if:
-///   - The path is not a file
-///   - The extension is not recognized
-///   - The path has no extension or filename
-pub fn file_extension_to_language_id(path: &Path) -> &'static str {
-    if !path.is_file() {
-        return "";
-    }
-    let extension = path
-        .extension()
-        .unwrap_or_else(|| path.file_name().unwrap_or_default())
-        .to_str()
-        .unwrap_or_default()
-        .to_lowercase();
-    match extension.as_str() {
+pub fn file_extension_to_language_id(extension: &str) -> &'static str {
+    match extension.to_lowercase().as_str() {
         // A
         "agda" => "agda",
 
@@ -130,4 +103,17 @@ pub fn file_extension_to_language_id(path: &Path) -> &'static str {
 
         _ => "",
     }
+}
+
+pub fn path_to_language_id(path: &Path) -> &'static str {
+    if !path.is_file() {
+        return "";
+    }
+    let extension = path
+        .extension()
+        .unwrap_or_else(|| path.file_name().unwrap_or_default())
+        .to_str()
+        .unwrap_or_default();
+
+    file_extension_to_language_id(extension)
 }

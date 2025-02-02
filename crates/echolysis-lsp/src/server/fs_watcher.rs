@@ -70,7 +70,12 @@ impl Server {
         self.log_info(format!("watching folders: {:?}", folders))
             .await;
         self.fs_watcher.watch(&folders);
-        // TODO
+        let files: Vec<_> = folders
+            .into_iter()
+            .flat_map(|folder| get_all_files_under_folder(&folder))
+            .zip(std::iter::repeat(None))
+            .collect();
+        self.on_insert(files).await;
     }
 
     pub(super) async fn unwatch(&self, folders: &[lsp_types::WorkspaceFolder]) {
@@ -85,13 +90,17 @@ impl Server {
         self.log_info(format!("unwatching folders: {:?}", folders))
             .await;
         self.fs_watcher.unwatch(&folders);
-        // TODO
+        let files: Vec<_> = folders
+            .into_iter()
+            .flat_map(|folder| get_all_files_under_folder(&folder))
+            .collect();
+        self.on_remove(files).await;
     }
 
     pub(super) async fn clear(&self) {
         self.log_info("unwatching all folders").await;
         self.fs_watcher.clear();
-        // TODO
+        self.on_remove_all().await;
     }
 
     pub(super) async fn handle_fs_event(&self, event: Result<notify::Event, notify::Error>) {
@@ -109,24 +118,51 @@ impl Server {
     async fn do_handle_fs_event(&self, event: notify::Event) {
         use notify::{event::*, EventKind};
 
-        self.log_info(format!("fs event: {event:?}")).await;
+        let paths: Vec<_> = event
+            .paths
+            .iter()
+            .filter(|path| {
+                (path.is_file()
+                    && path
+                        .extension()
+                        .unwrap_or_default()
+                        .to_str()
+                        .unwrap_or_default()
+                        != "log")
+                    || self.file_map.contains_key(path.as_path())
+            })
+            .cloned()
+            .collect();
+        if paths.is_empty() {
+            return;
+        }
 
         match event.kind {
             // Full update
             EventKind::Create(_)
             | EventKind::Modify(ModifyKind::Data(_))
             | EventKind::Modify(ModifyKind::Metadata(MetadataKind::WriteTime)) => {
-                let paths: Vec<_> = event.paths.iter().filter(|path| path.is_file()).collect();
-                if paths.is_empty() {
-                    return;
-                }
-                self.log_info(format!("insert files: {:?}", paths)).await;
+                self.on_insert(paths.into_iter().zip(std::iter::repeat(None)).collect())
+                    .await;
             }
             EventKind::Remove(_) => {
-                self.log_info(format!("remove files: {:?}", event.paths))
-                    .await;
+                self.on_remove(paths).await;
             }
             _ => (),
         }
     }
+}
+
+fn get_all_files_under_folder(folder: &PathBuf) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(folder).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if path.is_dir() {
+            files.extend(get_all_files_under_folder(&path));
+        } else if path.is_file() {
+            files.push(path);
+        }
+    }
+    files
 }

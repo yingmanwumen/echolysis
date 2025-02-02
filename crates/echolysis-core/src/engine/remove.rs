@@ -30,7 +30,7 @@ impl Engine {
         }
     }
 
-    pub fn remove_manay(&self, paths: Vec<Arc<String>>) {
+    pub fn remove_many(&self, paths: Vec<Arc<String>>) {
         paths.into_par_iter().for_each(|path| {
             self.remove(path);
         });
