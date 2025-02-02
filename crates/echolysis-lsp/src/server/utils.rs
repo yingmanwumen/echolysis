@@ -36,3 +36,10 @@ pub fn get_all_files_under_folder(folder: &Path) -> Vec<PathBuf> {
 
     files
 }
+
+pub fn get_git_root(path: &Path) -> Option<PathBuf> {
+    if let Ok(repo) = git2::Repository::discover(path) {
+        return Some(repo.workdir()?.to_path_buf());
+    }
+    None
+}

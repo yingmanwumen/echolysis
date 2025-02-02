@@ -1,10 +1,17 @@
 use echolysis_core::utils::hash::FxDashSet;
 use notify::{Config, Watcher};
 use parking_lot::Mutex;
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 use tower_lsp::lsp_types;
 
-use super::{utils::get_all_files_under_folder, Server};
+use super::{
+    utils::{get_all_files_under_folder, get_git_root},
+    Server,
+};
 
 /// File system watcher for monitoring workspace folder changes
 ///
@@ -78,6 +85,7 @@ impl Server {
         let folders: Vec<_> = folders
             .iter()
             .filter_map(|f| f.uri.to_file_path().ok())
+            .filter_map(|f| get_git_root(&f))
             .collect();
 
         if folders.is_empty() {
@@ -92,6 +100,21 @@ impl Server {
             .zip(std::iter::repeat(None))
             .collect();
         self.on_insert(files).await;
+    }
+
+    pub(super) async fn try_watch_path(&self, path: &Path) {
+        if !self.fs_watcher.folders.is_empty() {
+            return;
+        }
+        if let Some(root) = get_git_root(path) {
+            if let Ok(uri) = lsp_types::Url::from_directory_path(root) {
+                self.watch(&[lsp_types::WorkspaceFolder {
+                    uri,
+                    name: String::new(),
+                }])
+                .await;
+            }
+        }
     }
 
     pub(super) async fn unwatch(&self, folders: &[lsp_types::WorkspaceFolder]) {

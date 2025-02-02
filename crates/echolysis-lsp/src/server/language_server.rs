@@ -56,6 +56,7 @@ impl LanguageServer for Server {
             return;
         }
         if let Ok(path) = params.text_document.uri.to_file_path() {
+            self.try_watch_path(&path).await;
             self.on_insert(vec![(path, Some(&params.text_document.text))])
                 .await;
         }
@@ -75,6 +76,7 @@ impl LanguageServer for Server {
             return;
         }
         if let Ok(path) = params.text_document.uri.to_file_path() {
+            self.try_watch_path(&path).await;
             self.on_insert(vec![(path, Some(&params.content_changes[0].text))])
                 .await;
         }
