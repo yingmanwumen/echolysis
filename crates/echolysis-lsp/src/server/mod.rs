@@ -16,6 +16,7 @@ mod language_server;
 mod log;
 mod on_event;
 mod router;
+mod utils;
 
 #[derive(Debug, Clone, Eq)]
 struct LocationRange {
@@ -52,7 +53,7 @@ pub struct Server {
 
 // Helper struct to hold position information
 #[derive(Debug)]
-struct FilePosition {
+struct TSRange {
     start: echolysis_core::tree_sitter::Point,
     end: echolysis_core::tree_sitter::Point,
 }

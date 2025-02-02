@@ -4,7 +4,7 @@ use parking_lot::Mutex;
 use std::{path::PathBuf, sync::Arc, time::Duration};
 use tower_lsp::lsp_types;
 
-use super::Server;
+use super::{utils::get_all_files_under_folder, Server};
 
 /// File system watcher for monitoring workspace folder changes
 ///
@@ -180,18 +180,4 @@ impl Server {
             _ => unreachable!(),
         }
     }
-}
-
-fn get_all_files_under_folder(folder: &PathBuf) -> Vec<PathBuf> {
-    let mut files = Vec::new();
-    for entry in std::fs::read_dir(folder).unwrap() {
-        let entry = entry.unwrap();
-        let path = entry.path();
-        if path.is_dir() {
-            files.extend(get_all_files_under_folder(&path));
-        } else if path.is_file() {
-            files.push(path);
-        }
-    }
-    files
 }

@@ -2,26 +2,11 @@ use rayon::prelude::*;
 use std::{collections::HashMap, path::PathBuf};
 use tower_lsp::lsp_types;
 
-use super::{FilePosition, LocationRange, Server};
+use super::{utils::to_lsp_range, LocationRange, Server, TSRange};
 
 impl Server {
-    // Convert tree-sitter point to LSP position
-    pub(super) fn to_lsp_position(
-        point: &echolysis_core::tree_sitter::Point,
-    ) -> lsp_types::Position {
-        lsp_types::Position::new(point.row as u32, point.column as u32)
-    }
-
-    // Create LSP range from file positions
-    pub(super) fn create_lsp_range(pos: &FilePosition) -> lsp_types::Range {
-        lsp_types::Range {
-            start: Self::to_lsp_position(&pos.start),
-            end: Self::to_lsp_position(&pos.end),
-        }
-    }
-
     // Get all duplicate code fragments from engines
-    async fn collect_duplicates(&self) -> Vec<(String, Vec<Vec<(String, FilePosition)>>)> {
+    async fn collect_duplicates(&self) -> Vec<(String, Vec<Vec<(String, TSRange)>>)> {
         let duplicates = self
             .router
             .engines()
@@ -40,7 +25,7 @@ impl Server {
                                     let path = engine.get_path_by_id(id)?;
                                     Some((
                                         path.as_ref().to_string(),
-                                        FilePosition {
+                                        TSRange {
                                             start: node.start_position(),
                                             end: node.end_position(),
                                         },
@@ -61,18 +46,18 @@ impl Server {
     fn store_duplicate_locations(
         &self,
         uri: &lsp_types::Url,
-        current_pos: &FilePosition,
-        group: &[(String, FilePosition)],
+        current_pos: &TSRange,
+        group: &[(String, TSRange)],
     ) {
         for (file_path, dup_pos) in group {
             if let Ok(target_uri) = lsp_types::Url::from_file_path(file_path.as_str()) {
-                let target_range = Self::create_lsp_range(dup_pos);
+                let target_range = to_lsp_range(dup_pos);
 
                 // Store the location for the current range
                 self.duplicate_locations
                     .entry(LocationRange {
                         uri: uri.clone(),
-                        range: Self::create_lsp_range(current_pos),
+                        range: to_lsp_range(current_pos),
                     })
                     .or_insert_with(Vec::new)
                     .push(lsp_types::Location {
@@ -85,11 +70,11 @@ impl Server {
 
     // Create diagnostic for a duplicate code fragment
     fn create_duplicate_diagnostic(
-        current_pos: &FilePosition,
+        current_pos: &TSRange,
         other_locations: Vec<lsp_types::Location>,
     ) -> lsp_types::Diagnostic {
         lsp_types::Diagnostic {
-            range: Self::create_lsp_range(current_pos),
+            range: to_lsp_range(current_pos),
             severity: Some(lsp_types::DiagnosticSeverity::WARNING),
             source: Some("echolysis".to_string()),
             message: format!(
@@ -115,7 +100,7 @@ impl Server {
     // Process a group of duplicates and update diagnostics map
     fn process_duplicate_group(
         &self,
-        group: &[(String, FilePosition)],
+        group: &[(String, TSRange)],
         diagnostics_map: &mut HashMap<lsp_types::Url, Vec<lsp_types::Diagnostic>>,
     ) {
         for (file, pos) in group {
@@ -134,7 +119,7 @@ impl Server {
                             .ok()
                             .map(|other_uri| lsp_types::Location {
                                 uri: other_uri,
-                                range: Self::create_lsp_range(other_pos),
+                                range: to_lsp_range(other_pos),
                             })
                     })
                     .collect();
