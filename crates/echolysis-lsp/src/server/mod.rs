@@ -120,7 +120,7 @@ impl Server {
 
         for (_, groups) in duplicates {
             for group in groups {
-                for (file, (start, end)) in group {
+                for (file, (start, end)) in group.clone() {
                     self.log_info(format!(
                         "{:?}",
                         lsp_types::Url::from_file_path(file.as_str())
@@ -141,6 +141,41 @@ impl Server {
                             message: format!(
                                 "Duplicated code fragment found, {} lines",
                                 end.row - start.row + 1
+                            ),
+                            related_information: Some(
+                                group
+                                    .iter()
+                                    .filter_map(|(other_file, (other_start, other_end))| {
+                                        // 跳过当前文件，只显示其他文件的位置
+                                        if other_file == &file {
+                                            return None;
+                                        }
+
+                                        lsp_types::Url::from_file_path(other_file.as_str())
+                                            .ok()
+                                            .map(|other_uri| {
+                                                lsp_types::DiagnosticRelatedInformation {
+                                                    location: lsp_types::Location {
+                                                        uri: other_uri,
+                                                        range: lsp_types::Range {
+                                                            start: lsp_types::Position::new(
+                                                                other_start.row as u32,
+                                                                other_start.column as u32,
+                                                            ),
+                                                            end: lsp_types::Position::new(
+                                                                other_end.row as u32,
+                                                                other_end.column as u32,
+                                                            ),
+                                                        },
+                                                    },
+                                                    message: format!(
+                                                        "Similar code fragment ({} lines)",
+                                                        other_end.row - other_start.row + 1
+                                                    ),
+                                                }
+                                            })
+                                    })
+                                    .collect(),
                             ),
                             ..Default::default()
                         });
