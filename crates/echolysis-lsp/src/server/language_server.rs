@@ -12,11 +12,6 @@ impl LanguageServer for Server {
         &self,
         params: lsp_types::InitializeParams,
     ) -> jsonrpc::Result<lsp_types::InitializeResult> {
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(8) // TODO: Make it configurable
-            .build_global()
-            .unwrap();
-
         self.watch(&params.workspace_folders.unwrap_or_default())
             .await;
 

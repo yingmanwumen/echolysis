@@ -7,6 +7,11 @@ static GLOBAL: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
 #[tokio::main]
 async fn main() {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(8) // TODO: Make it configurable
+        .build_global()
+        .unwrap();
+
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 

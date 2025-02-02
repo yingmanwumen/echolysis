@@ -176,8 +176,7 @@ impl Server {
             .paths
             .iter()
             .filter(|path| {
-                let is_non_log_file = path.is_file()
-                    && (path.extension().and_then(|ext| ext.to_str()) != Some("log"));
+                let is_non_log_file = path.is_file();
                 // TODO: configurable file filter, ignore some file patterns here
 
                 is_non_log_file || self.file_map.contains_key(path.as_path())
