@@ -1,42 +1,21 @@
-use echolysis_core::utils::hash::FxDashSet;
+use dashmap::DashSet;
 use notify::{Config, Watcher};
-use parking_lot::Mutex;
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-};
+use std::path::PathBuf;
 use tower_lsp::lsp_types;
 
 use super::{
-    utils::{get_all_files_under_folder, get_git_root},
+    utils::{get_all_files_under_folder, get_git_top_root},
     Server,
 };
 
-/// File system watcher for monitoring workspace folder changes
-///
-/// Provides functionality to:
-/// - Watch workspace folders for file changes
-/// - Handle file system events (create/modify/delete)
-/// - Manage watched folder lifecycle
 pub struct FsWatcher {
-    /// The underlying file system watcher implementation
-    watcher: Arc<Mutex<Box<dyn Watcher + Send>>>,
-    /// Set of currently watched folder paths
-    folders: FxDashSet<PathBuf>,
+    watcher: parking_lot::Mutex<Box<dyn Watcher + Send>>,
+    folders: DashSet<PathBuf, ahash::RandomState>,
 }
 
 impl FsWatcher {
-    /// Creates a new file system watcher instance
-    ///
-    /// # Arguments
-    /// * `interval` - Polling interval for the watcher
-    /// * `event_handler` - Callback for handling file system events
-    ///
-    /// # Type Parameters
-    /// * `T` - The concrete watcher implementation type
     pub fn new<T: Watcher + 'static + Send>(
-        interval: Duration,
+        interval: std::time::Duration,
         event_handler: Box<dyn Fn(Result<notify::Event, notify::Error>) + Send>,
     ) -> Self {
         let watcher = Box::new(
@@ -48,8 +27,8 @@ impl FsWatcher {
         );
 
         Self {
-            watcher: Arc::new(Mutex::new(watcher)),
-            folders: FxDashSet::default(),
+            watcher: parking_lot::Mutex::new(watcher),
+            folders: DashSet::with_hasher(ahash::RandomState::default()),
         }
     }
 
@@ -71,6 +50,7 @@ impl FsWatcher {
         }
     }
 
+    #[allow(unused)]
     fn clear(&self) {
         let mut watcher = self.watcher.lock();
         for folder in self.folders.iter() {
@@ -81,40 +61,32 @@ impl FsWatcher {
 }
 
 impl Server {
+    fn collect_folder_files(folders: Vec<PathBuf>) -> Vec<lsp_types::Url> {
+        folders
+            .into_iter()
+            .flat_map(|folder| {
+                get_all_files_under_folder(&folder)
+                    .into_iter()
+                    .filter_map(|path| lsp_types::Url::from_file_path(&path).ok())
+            })
+            .collect()
+    }
+
     pub(super) async fn watch(&self, folders: &[lsp_types::WorkspaceFolder]) {
         let folders: Vec<_> = folders
             .iter()
-            .filter_map(|f| f.uri.to_file_path().ok())
-            .filter_map(|f| get_git_root(&f))
+            .filter_map(|f| f.uri.to_file_path().ok().and_then(|f| get_git_top_root(&f)))
             .collect();
 
         if folders.is_empty() {
             return;
         }
-        self.log_info(format!("watching folders: {:?}", folders))
-            .await;
         self.fs_watcher.watch(&folders);
-        let files: Vec<_> = folders
+        let files = Self::collect_folder_files(folders)
             .into_iter()
-            .flat_map(|folder| get_all_files_under_folder(&folder))
             .zip(std::iter::repeat(None))
-            .collect();
-        self.on_insert(files).await;
-    }
-
-    pub(super) async fn try_watch_path(&self, path: &Path) {
-        if !self.fs_watcher.folders.is_empty() {
-            return;
-        }
-        if let Some(root) = get_git_root(path) {
-            if let Ok(uri) = lsp_types::Url::from_directory_path(root) {
-                self.watch(&[lsp_types::WorkspaceFolder {
-                    uri,
-                    name: String::new(),
-                }])
-                .await;
-            }
-        }
+            .collect::<Vec<_>>();
+        self.on_insert(&files).await;
     }
 
     pub(super) async fn unwatch(&self, folders: &[lsp_types::WorkspaceFolder]) {
@@ -126,18 +98,13 @@ impl Server {
         if folders.is_empty() {
             return;
         }
-        self.log_info(format!("unwatching folders: {:?}", folders))
-            .await;
         self.fs_watcher.unwatch(&folders);
-        let files: Vec<_> = folders
-            .into_iter()
-            .flat_map(|folder| get_all_files_under_folder(&folder))
-            .collect();
-        self.on_remove(files).await;
+        let files = Self::collect_folder_files(folders);
+        self.on_remove(&files).await;
     }
 
+    #[allow(unused)]
     pub(super) async fn clear(&self) {
-        self.log_info("unwatching all folders").await;
         self.fs_watcher.clear();
         self.on_remove_all().await;
     }
@@ -145,8 +112,7 @@ impl Server {
     pub(super) async fn handle_fs_event(&self, event: Result<notify::Event, notify::Error>) {
         match event {
             Err(e) => {
-                self.log_error(format!("fs event error: {e:?}")).await;
-                // self.fs_watcher.unwatch(&e.paths);
+                self.fs_watcher.unwatch(&e.paths);
             }
             Ok(event) => {
                 self.do_handle_fs_event(event).await;
@@ -172,19 +138,22 @@ impl Server {
         }
 
         // Filter relevant paths (files that are not logs and tracked files)
-        let paths: Vec<_> = event
+        let uris: Vec<_> = event
             .paths
             .iter()
-            .filter(|path| {
-                let is_non_log_file = path.is_file();
-                // TODO: configurable file filter, ignore some file patterns here
-
-                is_non_log_file || self.file_map.contains_key(path.as_path())
+            .filter_map(|path| {
+                let uri = lsp_types::Url::from_file_path(path).ok()?;
+                // TODO: need add a global path filter here
+                // language specific path filters are also considered
+                if path.is_file() || self.file_map.contains_key(&uri) {
+                    Some(uri)
+                } else {
+                    None
+                }
             })
-            .cloned()
             .collect();
 
-        if paths.is_empty() {
+        if uris.is_empty() {
             return;
         }
 
@@ -193,13 +162,18 @@ impl Server {
             EventKind::Create(_)
             | EventKind::Modify(ModifyKind::Data(_))
             | EventKind::Modify(ModifyKind::Metadata(MetadataKind::WriteTime)) => {
-                let files = paths.into_iter().map(|p| (p, None)).collect();
-                self.on_insert(files).await;
+                self.on_insert(
+                    &uris
+                        .into_iter()
+                        .zip(std::iter::repeat(None))
+                        .collect::<Vec<_>>(),
+                )
+                .await;
             }
             EventKind::Remove(_) => {
-                self.on_remove(paths).await;
+                self.on_remove(&uris).await;
             }
-            _ => unreachable!(),
+            _ => (),
         }
     }
 }

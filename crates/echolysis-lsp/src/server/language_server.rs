@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tower_lsp::{
     jsonrpc,
     lsp_types::{self, GotoDefinitionParams, GotoDefinitionResponse},
@@ -42,48 +44,34 @@ impl LanguageServer for Server {
     }
 
     async fn shutdown(&self) -> jsonrpc::Result<()> {
-        self.stop().await;
         Ok(())
     }
 
     async fn did_open(&self, params: lsp_types::DidOpenTextDocumentParams) {
-        if self.is_stopped() {
-            return;
-        }
-        if let Ok(path) = params.text_document.uri.to_file_path() {
-            self.try_watch_path(&path).await;
-            self.on_insert(vec![(path, Some(&params.text_document.text))])
-                .await;
-        }
+        self.on_insert(&[(
+            params.text_document.uri,
+            Some(Arc::new(params.text_document.text)),
+        )])
+        .await;
     }
 
     async fn did_close(&self, params: lsp_types::DidCloseTextDocumentParams) {
-        if self.is_stopped() {
-            return;
-        }
-        if let Ok(path) = params.text_document.uri.to_file_path() {
-            self.clear_diagnostic(&[path]).await;
-        }
+        self.clear_diagnostic(&[params.text_document.uri], None)
+            .await;
     }
 
-    async fn did_change(&self, params: lsp_types::DidChangeTextDocumentParams) {
-        if self.is_stopped() {
-            return;
-        }
-        if let Ok(path) = params.text_document.uri.to_file_path() {
-            self.try_watch_path(&path).await;
-            self.on_insert(vec![(path, Some(&params.content_changes[0].text))])
-                .await;
-        }
+    async fn did_change(&self, mut params: lsp_types::DidChangeTextDocumentParams) {
+        self.on_insert(&[(
+            params.text_document.uri,
+            Some(Arc::new(params.content_changes.swap_remove(0).text)),
+        )])
+        .await;
     }
 
     async fn did_change_workspace_folders(
         &self,
         params: lsp_types::DidChangeWorkspaceFoldersParams,
     ) {
-        if self.is_stopped() {
-            return;
-        }
         self.unwatch(&params.event.removed).await;
         self.watch(&params.event.added).await;
     }
@@ -96,19 +84,36 @@ impl LanguageServer for Server {
         let position = params.text_document_position_params.position;
 
         // Find a range that contains the clicked position
-        let matching_location = self.duplicate_locations.iter().find(|entry| {
-            entry.key().uri == uri
-                && entry.key().range.start.line <= position.line
-                && position.line <= entry.key().range.end.line
-                && (position.line != entry.key().range.start.line
-                    || position.character >= entry.key().range.start.character)
-                && (position.line != entry.key().range.end.line
-                    || position.character <= entry.key().range.end.character)
-        });
+        let matching_locations = self
+            .duplicate_locations
+            .lock()
+            .iter()
+            .find(|locations| {
+                locations.iter().any(|location| {
+                    location.uri == uri
+                        && location.range.start.line <= position.line
+                        && position.line <= location.range.end.line
+                        && (position.line != location.range.start.line
+                            || position.character >= location.range.start.character)
+                        && (position.line != location.range.end.line
+                            || position.character <= location.range.end.character)
+                })
+            })
+            .map(|locations| {
+                locations
+                    .iter()
+                    .filter(|location| {
+                        location.uri != uri
+                            || (location.range.start.line != position.line
+                                && location.range.end.line != position.line
+                                && location.range.start.character != position.character
+                                && location.range.end.character != position.character)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>()
+            });
 
-        if let Some(entry) = matching_location {
-            let locations = entry.value();
-
+        if let Some(locations) = matching_locations {
             if !locations.is_empty() {
                 return Ok(Some(GotoDefinitionResponse::Array(locations.clone())));
             }

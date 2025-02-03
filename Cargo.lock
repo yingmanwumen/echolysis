@@ -206,6 +206,8 @@ dependencies = [
 name = "echolysis-lsp"
 version = "0.1.0"
 dependencies = [
+ "ahash",
+ "dashmap 6.1.0",
  "echolysis-core",
  "git2",
  "notify",

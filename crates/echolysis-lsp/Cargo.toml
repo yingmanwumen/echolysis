@@ -12,5 +12,7 @@ parking_lot = "0.12"
 rayon.workspace = true
 rpmalloc.workspace = true
 git2 = "0.20.0"
+dashmap = "6.1"
+ahash.workspace = true
 
 echolysis-core = { path = "../echolysis-core" }

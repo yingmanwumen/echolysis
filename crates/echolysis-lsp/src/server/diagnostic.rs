@@ -1,77 +1,34 @@
-use rayon::prelude::*;
-use std::{collections::HashMap, path::PathBuf};
+use std::sync::Arc;
+
+use ahash::AHashMap;
+use echolysis_core::engine::indexed_node::IndexedNode;
 use tower_lsp::lsp_types;
 
-use super::{utils::to_lsp_range, LocationRange, Server, TSRange};
+use super::{utils::get_node_location, Server};
 
 impl Server {
     // Get all duplicate code fragments from engines
-    async fn collect_duplicates(&self) -> Vec<(String, Vec<Vec<(String, TSRange)>>)> {
-        let duplicates = self
-            .router
+    async fn collect_duplicates(&self) -> Vec<Vec<Arc<IndexedNode>>> {
+        self.router
             .engines()
-            .par_iter()
-            .map(|engine| {
-                let duplicates = engine.detect_duplicates();
-                (
-                    engine.key().clone(),
-                    duplicates
-                        .into_iter()
-                        .map(|group| {
-                            group
-                                .into_iter()
-                                .map(|(path, (start, end))| {
-                                    (path.to_string(), TSRange { start, end })
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                        .collect::<Vec<_>>(),
-                )
-            })
-            .collect();
-
-        self.log_info(format!("publishing: {:?}", duplicates)).await;
-        duplicates
-    }
-
-    // Store duplicate locations for goto definition feature
-    fn store_duplicate_locations(
-        &self,
-        uri: &lsp_types::Url,
-        current_pos: &TSRange,
-        group: &[(String, TSRange)],
-    ) {
-        for (file_path, dup_pos) in group {
-            if let Ok(target_uri) = lsp_types::Url::from_file_path(file_path.as_str()) {
-                let target_range = to_lsp_range(dup_pos);
-
-                // Store the location for the current range
-                self.duplicate_locations
-                    .entry(LocationRange {
-                        uri: uri.clone(),
-                        range: to_lsp_range(current_pos),
-                    })
-                    .or_insert_with(Vec::new)
-                    .push(lsp_types::Location {
-                        uri: target_uri,
-                        range: target_range,
-                    });
-            }
-        }
+            .iter()
+            // TODO: make it configurable
+            .flat_map(|engine| engine.detect_duplicates(Some(100)))
+            .collect()
     }
 
     // Create diagnostic for a duplicate code fragment
     fn create_duplicate_diagnostic(
-        current_pos: &TSRange,
-        other_locations: Vec<lsp_types::Location>,
+        location: &lsp_types::Location,
+        other_locations: &[lsp_types::Location],
     ) -> lsp_types::Diagnostic {
         lsp_types::Diagnostic {
-            range: to_lsp_range(current_pos),
+            range: location.range,
             severity: Some(lsp_types::DiagnosticSeverity::WARNING),
             source: Some("echolysis".to_string()),
             message: format!(
                 "Duplicated code fragments found, {} lines",
-                current_pos.end.row - current_pos.start.row + 1
+                location.range.end.line - location.range.start.line + 1
             ),
             related_information: Some(
                 other_locations
@@ -92,44 +49,28 @@ impl Server {
     // Process a group of duplicates and update diagnostics map
     fn process_duplicate_group(
         &self,
-        group: &[(String, TSRange)],
-        diagnostics_map: &mut HashMap<lsp_types::Url, Vec<lsp_types::Diagnostic>>,
+        group: &[Arc<IndexedNode>],
+        diagnostics_map: &mut AHashMap<lsp_types::Url, Vec<lsp_types::Diagnostic>>,
     ) {
-        for (file, pos) in group {
-            if let Ok(uri) = lsp_types::Url::from_file_path(file.as_str()) {
-                // Collect locations for definition jumping
-                let other_locations: Vec<lsp_types::Location> = group
-                    .iter()
-                    .filter_map(|(other_file, other_pos)| {
-                        if other_file == file
-                            && other_pos.end == pos.end
-                            && other_pos.start == pos.start
-                        {
-                            return None;
-                        }
-                        lsp_types::Url::from_file_path(other_file.as_str())
-                            .ok()
-                            .map(|other_uri| lsp_types::Location {
-                                uri: other_uri,
-                                range: to_lsp_range(other_pos),
-                            })
-                    })
-                    .collect();
-
-                // Store locations for goto definition
-                self.store_duplicate_locations(&uri, pos, group);
-
-                // Create and store diagnostic
-                let diagnostic = Self::create_duplicate_diagnostic(pos, other_locations);
-                diagnostics_map.entry(uri).or_default().push(diagnostic);
+        let locations: Vec<_> = group
+            .iter()
+            .filter_map(|node| get_node_location(node))
+            .collect();
+        for node in group {
+            if let Some(location) = get_node_location(node) {
+                let diagnostic = Self::create_duplicate_diagnostic(&location, &locations);
+                diagnostics_map
+                    .entry(location.uri.clone())
+                    .or_default()
+                    .push(diagnostic);
+                self.duplicate_locations.lock().push(locations.clone());
             }
         }
     }
 
-    // Publish diagnostics to the client
     async fn publish_diagnostics(
         &self,
-        diagnostics_map: HashMap<lsp_types::Url, Vec<lsp_types::Diagnostic>>,
+        diagnostics_map: AHashMap<lsp_types::Url, Vec<lsp_types::Diagnostic>>,
     ) {
         if diagnostics_map.is_empty() {
             // Clear existing diagnostics
@@ -153,33 +94,22 @@ impl Server {
 
     // Main function to process and publish diagnostics
     pub async fn push_diagnostic(&self) {
-        self.duplicate_locations.clear();
+        self.duplicate_locations.lock().clear();
         let duplicates = self.collect_duplicates().await;
 
-        let mut diagnostics_map = HashMap::new();
-
-        // Process all duplicate groups
-        for (_, groups) in duplicates {
-            for group in groups {
-                self.process_duplicate_group(&group, &mut diagnostics_map);
-            }
+        let mut diagnostics_map = AHashMap::new();
+        for group in duplicates {
+            self.process_duplicate_group(&group, &mut diagnostics_map);
         }
-
-        self.log_info(format!("diagnostics_map: {:#?}", diagnostics_map))
-            .await;
-
-        // Publish the diagnostics
         self.publish_diagnostics(diagnostics_map).await;
     }
 
-    pub async fn clear_diagnostic(&self, paths: &[PathBuf]) {
-        for path in paths {
-            if let Ok(uri) = lsp_types::Url::from_file_path(path) {
-                self.client
-                    .publish_diagnostics(uri.clone(), vec![], None)
-                    .await;
-                self.diagnostics_record.remove(&uri);
-            }
+    pub async fn clear_diagnostic(&self, uris: &[lsp_types::Url], version: Option<i32>) {
+        for uri in uris {
+            self.diagnostics_record.remove(uri);
+            self.client
+                .publish_diagnostics(uri.clone(), vec![], version)
+                .await;
         }
     }
 }

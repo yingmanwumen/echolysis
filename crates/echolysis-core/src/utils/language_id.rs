@@ -1,6 +1,6 @@
 use std::path::Path;
 
-pub fn file_extension_to_language_id(extension: &str) -> &'static str {
+pub fn get_language_id_by_file_extentsion(extension: &str) -> &'static str {
     match extension.to_lowercase().as_str() {
         // A
         "agda" => "agda",
@@ -105,7 +105,7 @@ pub fn file_extension_to_language_id(extension: &str) -> &'static str {
     }
 }
 
-pub fn path_to_language_id(path: &Path) -> &'static str {
+pub fn get_language_id_by_path(path: &Path) -> &'static str {
     if !path.is_file() {
         return "";
     }
@@ -115,5 +115,5 @@ pub fn path_to_language_id(path: &Path) -> &'static str {
         .to_str()
         .unwrap_or_default();
 
-    file_extension_to_language_id(extension)
+    get_language_id_by_file_extentsion(extension)
 }

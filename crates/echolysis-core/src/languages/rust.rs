@@ -1,7 +1,7 @@
 use phf::{phf_map, phf_set};
 use tree_sitter::{Parser, Query};
 
-use crate::{indexed_engine::indexed_node::IndexedNode, utils::tree::NodeExt};
+use crate::engine::indexed_node::IndexedNode;
 
 use super::{Language, NodeTaste};
 
@@ -130,27 +130,6 @@ impl Language for Rust {
         &self.query
     }
 
-    fn simple_hash_node(
-        &self,
-        node: tree_sitter::Node<'_>,
-        query_index: Option<usize>,
-        source: &[u8],
-    ) -> u64 {
-        if let Some(index) = query_index {
-            let query = &self.query_names[index];
-            if QUERY_NOT_TO_OBFUSCATE.contains(query) {
-                return self.hash_builder.hash_one(node.text(source));
-            }
-            if QUERY_TO_OBFUSCATE.contains(query) {
-                return self.hash_builder.hash_one(query);
-            }
-        }
-        if NODES_TO_OBFUSCATE.contains(node.kind()) {
-            return self.hash_builder.hash_one(node.kind());
-        }
-        self.hash_builder.hash_one(node.text(source))
-    }
-
     fn simple_hash_indexed_node(&self, node: &IndexedNode) -> u64 {
         if let Some(index) = node.query_index() {
             let query = &self.query_names[index];
@@ -167,16 +146,6 @@ impl Language for Rust {
         self.hash_builder.hash_one(node.text())
     }
 
-    fn node_taste(&self, node: &tree_sitter::Node<'_>) -> NodeTaste {
-        if RUST_INTERESTING_NODES.contains(node.kind()) {
-            NodeTaste::Interesting
-        } else if RUST_IGNORED_NODES.contains(node.kind()) {
-            NodeTaste::Ignored
-        } else {
-            NodeTaste::Normal
-        }
-    }
-
     fn indexed_node_taste(&self, node: &IndexedNode) -> NodeTaste {
         if RUST_INTERESTING_NODES.contains(node.kind()) {
             NodeTaste::Interesting
@@ -185,19 +154,6 @@ impl Language for Rust {
         } else {
             NodeTaste::Normal
         }
-    }
-
-    fn cognitive_complexity(&self, node: tree_sitter::Node<'_>) -> f64 {
-        let mut res = 0.0;
-        let mut stack = vec![node];
-        while let Some(node) = stack.pop() {
-            let mut cursor = node.walk();
-            stack.extend(node.children(&mut cursor));
-            if let Some(&weight) = COGNITIVE_COMPLEXITY_WEIGHT.get(node.kind()) {
-                res += weight;
-            }
-        }
-        res
     }
 
     fn indexed_node_cognitive_complexity(&self, node: &IndexedNode) -> f64 {

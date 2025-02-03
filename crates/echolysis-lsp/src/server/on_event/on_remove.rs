@@ -1,27 +1,22 @@
 use std::{path::PathBuf, sync::Arc};
 
-use rayon::prelude::*;
 use rustc_hash::FxHashMap;
+use tower_lsp::lsp_types;
 
 use crate::server::Server;
 
 impl Server {
-    /// Handles the removal of files from the LSP server
-    ///
-    /// # Arguments
-    /// * `paths` - Vector of file paths to be removed
-    pub async fn on_remove(&self, paths: Vec<PathBuf>) {
+    pub async fn on_remove(&self, uris: &[lsp_types::Url]) {
         // Clear diagnostics for files being removed
-        self.clear_diagnostic(&paths).await;
+        self.clear_diagnostic(uris, None).await;
 
         // Group files by language for batch processing
-        let mut lang_map = FxHashMap::default();
-        for path in &paths {
-            if let Some((_, lang)) = self.file_map.remove(path) {
-                lang_map
-                    .entry(lang)
-                    .or_insert_with(Vec::new)
-                    .push(path.clone());
+        let mut lang_map: FxHashMap<&str, Vec<PathBuf>> = FxHashMap::default();
+        for uri in uris {
+            if let Some((_, lang)) = self.file_map.remove(uri) {
+                if let Ok(path) = uri.to_file_path() {
+                    lang_map.entry(lang).or_default().push(path);
+                }
             }
         }
 
@@ -30,34 +25,20 @@ impl Server {
             return;
         }
 
-        // Log removal operations
-        for (lang, files) in &lang_map {
-            self.log_info(format!("Removing {} files: {:?}", lang, files))
-                .await;
-        }
-
-        lang_map.into_par_iter().for_each(|(lang, files)| {
+        lang_map.into_iter().for_each(|(lang, paths)| {
             if let Some(engine) = self.router.get_engine_by_language_id(lang) {
-                engine.remove_many(
-                    files
-                        .into_iter()
-                        .filter_map(|file| {
-                            let file = file.to_str()?.to_string();
-                            Some(Arc::new(file))
-                        })
-                        .collect(),
-                );
+                engine.remove_many(paths.into_iter().map(Arc::new).collect::<Vec<_>>());
             }
         });
         self.push_diagnostic().await;
     }
 
     pub async fn on_remove_all(&self) {
+        self.file_map.clear();
         self.router
             .engines()
             .iter()
             .for_each(|engine| engine.remove_all());
-        self.file_map.clear();
         self.push_diagnostic().await;
     }
 }

@@ -1,41 +1,37 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
-use echolysis_core::{languages::SupportedLanguage, utils::language_id::path_to_language_id};
+use echolysis_core::{languages::SupportedLanguage, utils::language_id::get_language_id_by_path};
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
+use tower_lsp::lsp_types;
 
 use crate::server::Server;
 
 impl Server {
-    /// Handles insertion/modification of files in the LSP server
-    ///
-    /// # Arguments
-    /// * `files` - Vector of (file path, optional source content) pairs to process
-    ///
-    /// This function:
-    /// 1. Clears existing diagnostics for modified files
-    /// 2. Groups files by language
-    /// 3. Updates the file map with language associations
-    /// 4. Processes file contents in parallel using the appropriate language engines
-    pub async fn on_insert(&self, files: Vec<(PathBuf, Option<&str>)>) {
+    pub async fn on_insert(&self, sources: &[(lsp_types::Url, Option<Arc<String>>)]) {
         // Clear diagnostics for modified files first
-        self.clear_diagnostic(&files.iter().map(|x| x.0.clone()).collect::<Vec<_>>())
-            .await;
+        self.clear_diagnostic(
+            &sources.iter().map(|x| x.0.clone()).collect::<Vec<_>>(),
+            None,
+        )
+        .await;
 
         // Group files by language ID
         let mut lang_map = FxHashMap::default();
         let supported = SupportedLanguage::supported_languages();
-        for (file, source) in files {
-            let language_id = path_to_language_id(&file);
-            if !supported.contains(&language_id) {
-                continue;
+        for (uri, source) in sources {
+            if let Ok(path) = uri.to_file_path() {
+                let language_id = get_language_id_by_path(&path);
+                if !supported.contains(&language_id) {
+                    continue;
+                }
+                // Group files by language and store language association
+                lang_map
+                    .entry(language_id)
+                    .or_insert_with(Vec::new)
+                    .push((path.clone(), source));
+                self.file_map.insert(uri.clone(), language_id);
             }
-            // Group files by language and store language association
-            lang_map
-                .entry(language_id)
-                .or_insert_with(Vec::new)
-                .push((file.clone(), source));
-            self.file_map.insert(file, language_id);
         }
 
         // Early return if no supported files found
@@ -43,25 +39,18 @@ impl Server {
             return;
         }
 
-        for (lang, files) in &lang_map {
-            let paths: Vec<_> = files.iter().map(|x| x.0.clone()).collect();
-            self.log_info(format!("insert {} files: {:?}", lang, paths))
-                .await;
-        }
-
-        lang_map.into_par_iter().for_each(|(lang, files)| {
+        lang_map.into_iter().for_each(|(lang, sources)| {
             if let Some(engine) = self.router.get_engine_by_language_id(lang) {
                 engine.insert_many(
-                    files
-                        .into_iter()
+                    sources
+                        .into_par_iter()
                         .filter_map(|(path, source)| {
                             let source = source
-                                .map(|x| x.to_string())
-                                .unwrap_or(std::fs::read_to_string(&path).ok()?);
-                            let file = path.to_str()?.to_string();
-                            Some((Arc::new(file), source.to_string()))
+                                .clone()
+                                .unwrap_or(Arc::new(std::fs::read_to_string(&path).ok()?));
+                            Some((Arc::new(path), source))
                         })
-                        .collect(),
+                        .collect::<Vec<_>>(),
                 );
             }
         });

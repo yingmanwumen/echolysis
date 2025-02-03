@@ -1,21 +1,26 @@
 use std::path::{Path, PathBuf};
 
+use echolysis_core::engine::indexed_node::IndexedNode;
 use tower_lsp::lsp_types;
 
-use super::TSRange;
-
 // Convert tree-sitter point to LSP position
-pub fn to_lsp_position(point: &echolysis_core::tree_sitter::Point) -> lsp_types::Position {
+pub fn point_to_position(point: &echolysis_core::Point) -> lsp_types::Position {
     lsp_types::Position::new(point.row as u32, point.column as u32)
 }
 
-// Create LSP range from file positions
-pub fn to_lsp_range(pos: &TSRange) -> lsp_types::Range {
-    lsp_types::Range {
-        start: to_lsp_position(&pos.start),
-        end: to_lsp_position(&pos.end),
-    }
+pub fn get_node_location(node: &IndexedNode) -> Option<lsp_types::Location> {
+    let uri = lsp_types::Url::from_file_path(node.path()).ok()?;
+    let (start, end) = node.position_range();
+    Some(lsp_types::Location {
+        uri,
+        range: lsp_types::Range {
+            start: point_to_position(&start),
+            end: point_to_position(&end),
+        },
+    })
 }
+
+const MAX_FILE_COUNT: usize = 1024; // TODO: configurable file count
 
 pub fn get_all_files_under_folder(folder: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
@@ -27,8 +32,14 @@ pub fn get_all_files_under_folder(folder: &Path) -> Vec<PathBuf> {
                 let path = entry.path();
                 if path.is_dir() {
                     dirs_to_scan.push(path);
-                } else if path.is_file() {
-                    files.push(path);
+                    continue;
+                }
+                if !path.is_file() {
+                    continue;
+                }
+                files.push(path);
+                if files.len() == MAX_FILE_COUNT {
+                    return files;
                 }
             }
         }
@@ -37,7 +48,7 @@ pub fn get_all_files_under_folder(folder: &Path) -> Vec<PathBuf> {
     files
 }
 
-pub fn get_git_root(path: &Path) -> Option<PathBuf> {
+pub fn get_git_top_root(path: &Path) -> Option<PathBuf> {
     if let Ok(repo) = git2::Repository::discover(path) {
         return Some(repo.workdir()?.to_path_buf());
     }

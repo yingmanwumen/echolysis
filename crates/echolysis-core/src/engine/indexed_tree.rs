@@ -1,5 +1,4 @@
 use std::{
-    hash::Hash,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -9,6 +8,7 @@ use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
 use super::indexed_node::IndexedNode;
 
 pub struct IndexedTree {
+    #[allow(dead_code)]
     ts_tree: Mutex<Option<Tree>>,
     root: Arc<IndexedNode>,
 }

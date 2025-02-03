@@ -1,7 +1,7 @@
 use std::{
     hash::Hash,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use tree_sitter::Node;

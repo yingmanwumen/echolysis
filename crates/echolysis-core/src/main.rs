@@ -1,6 +1,6 @@
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use echolysis_core::{indexed_engine::IndexedEngine, languages::SupportedLanguage};
+use echolysis_core::{engine::Engine, languages::SupportedLanguage};
 
 #[global_allocator]
 static GLOBAL: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
@@ -24,14 +24,12 @@ pub fn main() {
         .into_iter()
         .zip(sources.iter().cloned())
         .collect::<Vec<_>>();
-    let engine = IndexedEngine::new(
-        SupportedLanguage::from_language_id("rust").unwrap(),
-        Some(sources.clone()),
-    );
+    let engine = Engine::new(SupportedLanguage::from_language_id("rust").unwrap());
+    engine.insert_many(sources);
     let indexed = std::time::Instant::now();
 
     let detecting = std::time::Instant::now();
-    let duplicates = engine.detect_duplicates();
+    let duplicates = engine.detect_duplicates(None);
     let dtected = std::time::Instant::now();
 
     for dup in &duplicates {

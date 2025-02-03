@@ -1,73 +1,65 @@
-use std::sync::Arc;
-
-use super::Engine;
+use std::{path::PathBuf, sync::Arc};
 
 use dashmap::Entry;
 use rayon::prelude::*;
-use rustc_hash::FxHashSet;
 
-use crate::{utils::tree::Traverse, Id};
+use crate::{languages::NodeTaste, utils::hash::merge_structure_hash};
+
+use super::{indexed_node::IndexedNode, Engine};
 
 impl Engine {
-    /// Removes a tree and all its associated data from the engine using the given path.
-    ///
-    /// This method performs the following operations:
-    /// 1. Looks up the tree in the tree map using the provided path
-    /// 2. If found, collects all node IDs in the tree
-    /// 3. Removes all associated data for these IDs
-    /// 4. Removes the tree itself from the tree map
-    ///
-    /// # Arguments
-    /// * `path` - An `Arc<String>` representing the path to the tree to be removed
-    pub fn remove(&self, path: Arc<String>) {
-        if let Entry::Occupied(tree) = self.tree_map.entry(path) {
-            let mut ids = FxHashSet::default();
-            tree.get().preorder_traverse(|node| {
-                ids.insert(Id::from(node.id()));
-            });
-            self.remove_by_ids(ids);
-            // NOTE: This guard is essential!!!
-            let _guard = self.protecting_guard.lock().unwrap();
-            tree.remove();
-        }
-    }
-
-    pub fn remove_many(&self, paths: Vec<Arc<String>>) {
+    pub fn remove_many(&self, paths: impl IntoParallelIterator<Item = Arc<PathBuf>>) {
         paths.into_par_iter().for_each(|path| {
             self.remove(path);
-        });
+        })
     }
 
     pub fn remove_all(&self) {
-        self.tree_map.clear();
-        self.hash_map.clear();
-        self.id_map.clear();
-        self.path_map.clear();
-        self.query_map.clear();
+        self.remove_many(
+            self.tree_map
+                .iter()
+                .map(|entry| entry.key().clone())
+                .collect::<Vec<_>>(),
+        );
     }
 
-    /// Removes all data associated with the given set of IDs from the engine's internal maps.
-    ///
-    /// This method cleans up:
-    /// - Entries in the hash map (removing IDs from value sets)
-    /// - Empty entries from the hash map
-    /// - Entries from the ID map
-    /// - Entries from the path map
-    /// - Entries from the query map
-    ///
-    /// The cleanup of ID, path, and query maps is performed in parallel using rayon.
-    ///
-    /// # Arguments
-    /// * `ids` - A `FxHashSet<Id>` containing all IDs to be removed
-    fn remove_by_ids(&self, ids: FxHashSet<Id>) {
-        for mut entry in self.hash_map.iter_mut() {
-            entry.value_mut().retain(|id| !ids.contains(id));
+    pub fn remove(&self, path: Arc<PathBuf>) {
+        if let Entry::Occupied(entry) = self.tree_map.entry(path) {
+            let tree = entry.get();
+            // First remove all hashes related to this tree
+            self.remove_merkle_hashes(tree.root_node());
+            // Then remove the tree itself
+            entry.remove();
         }
-        self.hash_map.retain(|_, v| !v.is_empty());
-        ids.into_par_iter().for_each(|id| {
-            self.id_map.remove(&id);
-            self.path_map.remove(&id);
-            self.query_map.remove(&id);
-        });
+    }
+
+    fn remove_merkle_hashes(&self, node: Arc<IndexedNode>) -> u64 {
+        if node.is_extra_or_missing_or_error()
+            || self.language.indexed_node_taste(&node) == NodeTaste::Ignored
+        {
+            return 0;
+        }
+        if node.children().is_empty() {
+            return self.language.simple_hash_indexed_node(&node);
+        }
+        let mut combined_hash: u64 = 0;
+        for child in node.children() {
+            combined_hash =
+                merge_structure_hash(combined_hash, self.remove_merkle_hashes(child.clone()));
+        }
+        if self.language.indexed_node_taste(&node) == NodeTaste::Interesting
+            && self.language.indexed_node_cognitive_complexity(&node)
+                >= self.language.complexity_threshold()
+        {
+            if let Some(mut set) = self.hash_map.get_mut(&combined_hash) {
+                set.remove(&node);
+                // If the set becomes empty, remove it from the hash_map
+                if set.is_empty() {
+                    drop(set); // 先释放可变引用
+                    self.hash_map.remove(&combined_hash);
+                }
+            }
+        }
+        combined_hash
     }
 }
