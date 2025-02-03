@@ -1,5 +1,9 @@
 mod engine;
+#[allow(unused)]
+mod indexed_engine;
 
+#[allow(unused)]
+pub mod indexed_tree;
 pub mod languages;
 pub mod utils;
 

@@ -19,6 +19,7 @@ use crate::{
     Id,
 };
 
+/// It is going to be deprecated
 pub struct Engine {
     language: SupportedLanguage,
     tree_map: ADashMap<Arc<String>, Tree>,
