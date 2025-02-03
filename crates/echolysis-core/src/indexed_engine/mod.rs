@@ -1,3 +1,8 @@
+#[allow(unused)]
+pub mod indexed_node;
+#[allow(unused)]
+pub mod indexed_tree;
+
 mod insert;
 mod merkle_hash;
 mod remove;
@@ -5,13 +10,12 @@ mod remove;
 use std::{path::PathBuf, sync::Arc};
 
 use dashmap::DashMap;
+use indexed_node::IndexedNode;
+use indexed_tree::IndexedTree;
 use rayon::iter::IntoParallelIterator;
 use rustc_hash::{FxBuildHasher, FxHashSet};
 
-use crate::{
-    indexed_tree::{IndexedNode, IndexedTree},
-    languages::SupportedLanguage,
-};
+use crate::languages::SupportedLanguage;
 
 pub struct IndexedEngine {
     language: SupportedLanguage,

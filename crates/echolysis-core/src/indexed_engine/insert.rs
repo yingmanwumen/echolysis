@@ -1,8 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use crate::indexed_tree::IndexedTree;
-
-use super::IndexedEngine;
+use super::{indexed_tree::IndexedTree, IndexedEngine};
 use rayon::prelude::*;
 
 impl IndexedEngine {
