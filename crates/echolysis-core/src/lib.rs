@@ -1,6 +1,7 @@
 mod engine;
+
 #[allow(unused)]
-mod indexed_engine;
+pub mod indexed_engine;
 
 pub mod languages;
 pub mod utils;

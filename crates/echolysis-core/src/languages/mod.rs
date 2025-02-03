@@ -7,6 +7,8 @@ use python::Python;
 use rust::Rust;
 use tree_sitter::{InputEdit, Node, Parser, Query};
 
+use crate::indexed_engine::indexed_node::IndexedNode;
+
 pub enum SupportedLanguage {
     Python(Python),
     Rust(Rust),
@@ -64,6 +66,17 @@ pub trait Language {
     /// A 64-bit hash value representing the node's content
     fn simple_hash_node(&self, node: Node<'_>, query_index: Option<usize>, source: &[u8]) -> u64;
 
+    /// Computes a hash value for a single syntax node
+    ///
+    /// # Arguments
+    /// * `node` - The syntax node to hash
+    /// * `query_index` - Optional index into the highlighting query results
+    /// * `source` - The source code bytes
+    ///
+    /// # Returns
+    /// A 64-bit hash value representing the node's content
+    fn simple_hash_indexed_node(&self, node: &IndexedNode) -> u64;
+
     /// Determines the importance level of a syntax node for analysis
     ///
     /// # Arguments
@@ -76,6 +89,18 @@ pub trait Language {
     /// - Normal: Processed normally
     fn node_taste(&self, node: &Node<'_>) -> NodeTaste;
 
+    /// Determines the importance level of a syntax node for analysis
+    ///
+    /// # Arguments
+    /// * `node` - The syntax node to evaluate
+    ///
+    /// # Returns
+    /// A NodeTaste value indicating if the node should be:
+    /// - Ignored: Excluded from analysis (like comments)
+    /// - Interesting: Given special attention (like function definitions)
+    /// - Normal: Processed normally
+    fn indexed_node_taste(&self, node: &IndexedNode) -> NodeTaste;
+
     /// Calculates a cognitive complexity score for a syntax node and its sub-tree
     ///
     /// # Arguments
@@ -84,6 +109,8 @@ pub trait Language {
     /// # Returns
     /// A floating point score where higher values indicate more complex code
     fn cognitive_complexity(&self, node: Node<'_>) -> f64;
+
+    fn indexed_node_cognitive_complexity(&self, node: &IndexedNode) -> f64;
 
     /// Returns the minimum cognitive complexity threshold for considering a node interesting
     ///

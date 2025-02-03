@@ -1,7 +1,6 @@
-use std::sync::Arc;
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use ahash::AHashMap;
-use echolysis_core::{languages::SupportedLanguage, Engine};
+use echolysis_core::{indexed_engine::IndexedEngine, languages::SupportedLanguage};
 
 #[global_allocator]
 static GLOBAL: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
@@ -13,17 +12,19 @@ pub fn main() {
         .unwrap();
 
     let start = std::time::Instant::now();
-    let paths = std::env::args().skip(1).collect::<Vec<String>>();
+    let paths = std::env::args()
+        .skip(1)
+        .filter_map(|path| PathBuf::from_str(&path).ok().map(Arc::new))
+        .collect::<Vec<Arc<PathBuf>>>();
     let sources = paths
         .iter()
-        .map(|path| std::fs::read_to_string(path).unwrap())
+        .filter_map(|path| std::fs::read_to_string(path.as_path()).ok().map(Arc::new))
         .collect::<Vec<_>>();
     let sources = paths
         .into_iter()
-        .zip(&sources)
-        .map(|(path, source)| (Arc::new(path), source.as_str()))
-        .collect::<AHashMap<_, _>>();
-    let engine = Engine::new(
+        .zip(sources.iter().cloned())
+        .collect::<Vec<_>>();
+    let engine = IndexedEngine::new(
         SupportedLanguage::from_language_id("rust").unwrap(),
         Some(sources.clone()),
     );
@@ -36,15 +37,18 @@ pub fn main() {
     for dup in &duplicates {
         println!("=======================================================");
         let len = dup.len();
-        for (i, (path, (start, end))) in dup.iter().enumerate() {
-            let start_row = start.row + 1;
-            let end_row = end.row + 1;
+        for (i, node) in dup.iter().enumerate() {
+            let (start, end) = node.position_range();
             println!(
                 "{}:{} {} lines long",
-                path,
-                start_row,
-                end_row - start_row + 1,
+                node.path().to_str().unwrap_or_default(),
+                start.row + 1,
+                end.row - start.row + 1,
             );
+            for _ in 0..start.column {
+                print!(" ");
+            }
+            println!("{}", node.text());
             if i != len - 1 {
                 println!("-------------------------------------------------------");
             }

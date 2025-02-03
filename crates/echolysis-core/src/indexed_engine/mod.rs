@@ -9,10 +9,10 @@ mod remove;
 
 use std::{path::PathBuf, sync::Arc};
 
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use indexed_node::IndexedNode;
 use indexed_tree::IndexedTree;
-use rayon::iter::IntoParallelIterator;
+use rayon::prelude::*;
 use rustc_hash::{FxBuildHasher, FxHashSet};
 
 use crate::languages::SupportedLanguage;
@@ -37,5 +37,39 @@ impl IndexedEngine {
             engine.insert_many(sources.into_par_iter());
         }
         engine
+    }
+
+    pub fn detect_duplicates(&self) -> Vec<Vec<Arc<IndexedNode>>> {
+        let mut children = DashSet::with_hasher(FxBuildHasher);
+        self.hash_map.par_iter().for_each(|nodes| {
+            if nodes.len() < 2 {
+                return;
+            }
+            for node in nodes.value() {
+                for child in node.children() {
+                    children.insert(child.clone());
+                }
+            }
+        });
+        self.hash_map
+            .par_iter()
+            .filter_map(|nodes| {
+                let group: Vec<_> = nodes
+                    .iter()
+                    .filter_map(|node| {
+                        if children.contains(node) {
+                            None
+                        } else {
+                            Some(node.clone())
+                        }
+                    })
+                    .collect();
+                if group.len() > 1 {
+                    Some(group)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
