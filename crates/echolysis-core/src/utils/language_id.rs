@@ -111,8 +111,7 @@ pub fn get_language_id_by_path(path: &Path) -> &'static str {
     }
     let extension = path
         .extension()
-        .unwrap_or_else(|| path.file_name().unwrap_or_default())
-        .to_str()
+        .and_then(|x| x.to_str())
         .unwrap_or_default();
 
     get_language_id_by_file_extentsion(extension)

@@ -17,19 +17,16 @@ impl FsWatcher {
     pub fn new<T: Watcher + 'static + Send>(
         interval: std::time::Duration,
         event_handler: Box<dyn Fn(Result<notify::Event, notify::Error>) + Send>,
-    ) -> Self {
-        let watcher = Box::new(
-            T::new(
-                event_handler,
-                Config::default().with_poll_interval(interval),
-            )
-            .unwrap(),
-        );
+    ) -> Result<Self, notify::Error> {
+        let watcher = Box::new(T::new(
+            event_handler,
+            Config::default().with_poll_interval(interval),
+        )?);
 
-        Self {
+        Ok(Self {
             watcher: parking_lot::Mutex::new(watcher),
             folders: DashSet::with_hasher(ahash::RandomState::default()),
-        }
+        })
     }
 
     fn unwatch(&self, folders: &[PathBuf]) {

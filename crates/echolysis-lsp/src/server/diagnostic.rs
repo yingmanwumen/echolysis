@@ -23,15 +23,14 @@ impl Server {
         other_locations: &[lsp_types::Location],
         group: &[Arc<IndexedNode>],
     ) -> lsp_types::Diagnostic {
-        let mut message = format!(
-            "Duplicated code fragments found, {} lines\n",
-            location.range.end.line - location.range.start.line + 1
-        );
+        let mut message = "Duplicated code fragments found\n".to_string();
         for (i, node) in group.iter().enumerate() {
             message += &format!(
-                "\t{i}: {}, line {}\n",
+                "\t{i}: {}, line {}-{}, {} lines long\n",
                 node.path().to_string_lossy(),
-                node.position_range().1.row + 1
+                node.position_range().0.row + 1,
+                node.position_range().1.row + 1,
+                location.range.end.line - location.range.start.line + 1
             );
         }
         lsp_types::Diagnostic {
