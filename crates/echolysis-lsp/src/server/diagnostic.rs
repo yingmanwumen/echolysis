@@ -29,8 +29,7 @@ impl Server {
         );
         for (i, node) in group.iter().enumerate() {
             message += &format!(
-                "\t{i}: {}, {}, line {}\n",
-                node.id(),
+                "\t{i}: {}, line {}\n",
                 node.path().to_string_lossy(),
                 node.position_range().1.row + 1
             );
