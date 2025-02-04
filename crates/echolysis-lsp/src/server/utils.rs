@@ -20,7 +20,7 @@ pub fn get_node_location(node: &IndexedNode) -> Option<lsp_types::Location> {
     })
 }
 
-const MAX_FILE_COUNT: usize = 1024; // TODO: configurable file count
+const MAX_FILE_COUNT: usize = 10000; // TODO: configurable file count
 
 pub fn get_all_files_under_folder(folder: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();

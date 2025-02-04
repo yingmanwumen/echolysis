@@ -14,13 +14,24 @@ impl Engine {
     }
 
     pub fn insert(&self, path: Arc<PathBuf>, source: Arc<String>) -> Option<()> {
-        self.remove(path.clone());
         let mut parser = self.language.parser();
         let query = self.language.query();
         let tree = parser.parse(source.as_str(), None)?;
         let indexed_tree = IndexedTree::new(path.clone(), source, tree, query);
-        self.merkle_hash(&indexed_tree);
-        self.tree_map.insert(path, indexed_tree);
+
+        match self.tree_map.entry(path) {
+            dashmap::Entry::Occupied(mut entry) => {
+                let old = entry.get();
+                self.remove_merkle_hashes(old.root_node());
+                self.merkle_hash(&indexed_tree);
+                entry.insert(indexed_tree);
+            }
+            dashmap::Entry::Vacant(entry) => {
+                self.merkle_hash(&indexed_tree);
+                entry.insert(indexed_tree);
+            }
+        }
+
         Some(())
     }
 }

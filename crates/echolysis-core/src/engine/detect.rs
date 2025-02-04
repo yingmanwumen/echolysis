@@ -40,7 +40,7 @@ impl Engine {
             .filter(|nodes| nodes.len() > 1)
             .for_each(|nodes| {
                 for node in nodes.value() {
-                    for child in node.children() {
+                    for child in IndexedNode::all_children(node.clone()) {
                         child_nodes.insert(child.clone());
                     }
                 }

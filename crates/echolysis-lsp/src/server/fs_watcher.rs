@@ -84,6 +84,18 @@ impl Server {
         self.fs_watcher.watch(&folders);
         let files = Self::collect_folder_files(folders)
             .into_iter()
+            .filter(|f| {
+                if let Ok(path) = f.to_file_path() {
+                    !path.components().any(|c| {
+                        matches!(
+                            c.as_os_str().to_str(),
+                            Some("venv" | "node_modules" | "target")
+                        )
+                    })
+                } else {
+                    false
+                }
+            })
             .zip(std::iter::repeat(None))
             .collect::<Vec<_>>();
         self.on_insert(&files).await;
@@ -145,6 +157,14 @@ impl Server {
                 let uri = lsp_types::Url::from_file_path(path).ok()?;
                 // TODO: need add a global path filter here
                 // language specific path filters are also considered
+                if path.components().any(|c| {
+                    matches!(
+                        c.as_os_str().to_str(),
+                        Some("venv" | "node_modules" | "target")
+                    )
+                }) {
+                    return None;
+                }
                 if path.is_file() || self.file_map.contains_key(&uri) {
                     Some(uri)
                 } else {

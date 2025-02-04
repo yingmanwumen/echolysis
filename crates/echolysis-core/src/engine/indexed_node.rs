@@ -106,4 +106,17 @@ impl IndexedNode {
             }
         }
     }
+
+    pub fn all_children(node: Arc<Self>) -> Vec<Arc<IndexedNode>> {
+        let mut stack = vec![node];
+        let mut res = vec![];
+
+        while let Some(node) = stack.pop() {
+            for child in node.children.iter().rev() {
+                res.push(child.clone());
+                stack.push(child.clone());
+            }
+        }
+        res
+    }
 }

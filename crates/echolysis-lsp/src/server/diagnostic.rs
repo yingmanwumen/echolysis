@@ -21,15 +21,25 @@ impl Server {
     fn create_duplicate_diagnostic(
         location: &lsp_types::Location,
         other_locations: &[lsp_types::Location],
+        group: &[Arc<IndexedNode>],
     ) -> lsp_types::Diagnostic {
+        let mut message = format!(
+            "Duplicated code fragments found, {} lines\n",
+            location.range.end.line - location.range.start.line + 1
+        );
+        for (i, node) in group.iter().enumerate() {
+            message += &format!(
+                "\t{i}: {}, {}, line {}\n",
+                node.id(),
+                node.path().to_string_lossy(),
+                node.position_range().1.row + 1
+            );
+        }
         lsp_types::Diagnostic {
             range: location.range,
             severity: Some(lsp_types::DiagnosticSeverity::WARNING),
             source: Some("echolysis".to_string()),
-            message: format!(
-                "Duplicated code fragments found, {} lines",
-                location.range.end.line - location.range.start.line + 1
-            ),
+            message,
             related_information: Some(
                 other_locations
                     .iter()
@@ -58,7 +68,7 @@ impl Server {
             .collect();
         for node in group {
             if let Some(location) = get_node_location(node) {
-                let diagnostic = Self::create_duplicate_diagnostic(&location, &locations);
+                let diagnostic = Self::create_duplicate_diagnostic(&location, &locations, group);
                 diagnostics_map
                     .entry(location.uri.clone())
                     .or_default()

@@ -27,6 +27,7 @@ impl Engine {
             && self.language.indexed_node_cognitive_complexity(&node)
                 >= self.language.complexity_threshold()
         {
+            self.node_hash_map.insert(node.id(), combined_hash);
             self.hash_map.entry(combined_hash).or_default().insert(node);
         }
         combined_hash
