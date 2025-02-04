@@ -30,6 +30,14 @@ pub fn get_all_files_under_folder(folder: &Path) -> Vec<PathBuf> {
         if let Ok(entries) = std::fs::read_dir(&current_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
+                if path.components().any(|c| {
+                    matches!(
+                        c.as_os_str().to_str(),
+                        Some("venv" | "node_modules" | "target")
+                    )
+                }) {
+                    continue;
+                }
                 if path.is_dir() {
                     dirs_to_scan.push(path);
                     continue;

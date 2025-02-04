@@ -81,18 +81,6 @@ impl Server {
         self.fs_watcher.watch(&folders);
         let files = Self::collect_folder_files(folders)
             .into_iter()
-            .filter(|f| {
-                if let Ok(path) = f.to_file_path() {
-                    !path.components().any(|c| {
-                        matches!(
-                            c.as_os_str().to_str(),
-                            Some("venv" | "node_modules" | "target")
-                        )
-                    })
-                } else {
-                    false
-                }
-            })
             .zip(std::iter::repeat(None))
             .collect::<Vec<_>>();
         self.on_insert(&files).await;
