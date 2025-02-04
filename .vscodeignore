@@ -1,0 +1,9 @@
+**
+!images/typos.png
+!LICENSE
+!dist/extension.js
+!package-lock.json
+!package.json
+!bundled
+!README.md
+!node_modules

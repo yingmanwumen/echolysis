@@ -1,0 +1,66 @@
+{
+  "name": "echolysis",
+  "displayName": "Echolysis",
+  "description": "Duplicated code fragment detector based on treesitter",
+  "publisher": "yingmanwumen",
+  "version": "0.0.1",
+  "repository": {
+    "url": "https://github.com/yingmanwumen/echolysis.git",
+    "type": "git"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "onLanguage:rust"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "echolysis.restart",
+        "title": "Restart"
+      }
+    ],
+    "configuration": {
+      "title": "Echolysis",
+      "type": "object",
+      "properties": {
+        "echolysis.path": {
+          "scope": "machine-overridable",
+          "type": "string"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "pnpm run compile && pnpm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "package": "pnpx vsce package"
+  },
+  "devDependencies": {
+    "@types/mocha": "10.0.10",
+    "@types/node": "22.x",
+    "@types/vscode": "1.96.0",
+    "@typescript-eslint/eslint-plugin": "8.23.0",
+    "@typescript-eslint/parser": "8.23.0",
+    "@vscode/test-cli": "0.0.10",
+    "@vscode/test-electron": "2.4.1",
+    "eslint": "9.19.0",
+    "typescript": "5.7.3"
+  },
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
+  }
+}
+

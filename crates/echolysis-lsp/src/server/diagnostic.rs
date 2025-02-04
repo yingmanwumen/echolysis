@@ -21,18 +21,8 @@ impl Server {
     fn create_duplicate_diagnostic(
         location: &lsp_types::Location,
         other_locations: &[lsp_types::Location],
-        group: &[Arc<IndexedNode>],
     ) -> lsp_types::Diagnostic {
-        let mut message = "Duplicated code fragments found\n".to_string();
-        for (i, node) in group.iter().enumerate() {
-            message += &format!(
-                "\t{i}: {}, line {}-{}, {} lines long\n",
-                node.path().to_string_lossy(),
-                node.position_range().0.row + 1,
-                node.position_range().1.row + 1,
-                location.range.end.line - location.range.start.line + 1
-            );
-        }
+        let message = "Duplicated code fragments found\n".to_string();
         lsp_types::Diagnostic {
             range: location.range,
             severity: Some(lsp_types::DiagnosticSeverity::WARNING),
@@ -44,7 +34,8 @@ impl Server {
                     .map(|location| lsp_types::DiagnosticRelatedInformation {
                         location: location.clone(),
                         message: format!(
-                            "Similar code fragment ({} lines)",
+                            "Similar code fragment (line {}) {} lines long",
+                            location.range.start.line + 1,
                             location.range.end.line - location.range.start.line + 1
                         ),
                     })
@@ -66,7 +57,7 @@ impl Server {
             .collect();
         for node in group {
             if let Some(location) = get_node_location(node) {
-                let diagnostic = Self::create_duplicate_diagnostic(&location, &locations, group);
+                let diagnostic = Self::create_duplicate_diagnostic(&location, &locations);
                 diagnostics_map
                     .entry(location.uri.clone())
                     .or_default()

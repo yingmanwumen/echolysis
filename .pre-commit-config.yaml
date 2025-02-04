@@ -15,7 +15,6 @@ repos:
       - id: check-byte-order-marker
       - id: check-executables-have-shebangs
       - id: check-illegal-windows-names
-      - id: check-json
       - id: check-merge-conflict
       - id: check-symlinks
       - id: check-toml
@@ -23,7 +22,6 @@ repos:
       - id: destroyed-symlinks
       - id: mixed-line-ending
         exclude: ^test/
-      - id: pretty-format-json
       - id: requirements-txt-fixer
       - id: trailing-whitespace
         exclude: ^test/
@@ -37,7 +35,6 @@ repos:
     rev: v1.1.0
     hooks:
       - id: cargo-sort
-
 
   # - repo: https://github.com/est31/cargo-udeps
   #   rev: v0.1.54
@@ -75,3 +72,4 @@ repos:
 
 default_language_version:
   python: python3
+

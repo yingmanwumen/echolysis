@@ -185,3 +185,7 @@ debug/
 
 # JetBrains
 .idea
+
+node_modules/
+bundled
+*.vsix
