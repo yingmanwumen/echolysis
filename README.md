@@ -38,6 +38,8 @@ Echolysis addresses these challenges by:
 
 ## Current Status
 
+### Language Support
+
 Echolysis currently supports:
 
 - [x] Rust
@@ -46,6 +48,12 @@ Echolysis currently supports:
 - [ ] ...
 
 More languages will be added in the future.
+
+### Platform Support
+
+- [ ] VS Code (Developing)
+- [ ] Vim/Neovim
+- [ ] ...
 
 ## Components
 
