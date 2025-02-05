@@ -6,9 +6,29 @@ use tower_lsp::lsp_types;
 use crate::server::Server;
 
 impl Server {
+    fn related_uris_of_duplicated(&self, uris: &[lsp_types::Url]) -> Option<Vec<lsp_types::Url>> {
+        Some(
+            self.duplicate_locations
+                .lock()
+                .iter()
+                .find(|locations| locations.iter().any(|loc| uris.contains(&loc.uri)))?
+                .iter()
+                .map(|loc| loc.uri.clone())
+                .collect::<Vec<_>>(),
+        )
+    }
+
     pub async fn on_remove(&self, uris: &[lsp_types::Url]) {
-        // Clear diagnostics for files being removed
-        self.clear_diagnostic(uris, None).await;
+        // Clear diagnostics for files being removed and their duplicates
+        self.clear_diagnostic(
+            &[
+                uris,
+                &self.related_uris_of_duplicated(uris).unwrap_or_default(),
+            ]
+            .concat(),
+            None,
+        )
+        .await;
 
         // Group files by language for batch processing
         let mut lang_map: FxHashMap<&str, Vec<PathBuf>> = FxHashMap::default();
@@ -30,6 +50,7 @@ impl Server {
                 engine.remove_many(paths.into_iter().map(Arc::new).collect::<Vec<_>>());
             }
         });
+
         self.push_diagnostic().await;
     }
 
