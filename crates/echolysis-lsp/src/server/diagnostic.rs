@@ -73,18 +73,18 @@ impl Server {
     ) {
         if diagnostics_map.is_empty() {
             // Clear existing diagnostics
-            for item in self.diagnostics_record.iter() {
+            for item in self.diagnostics_uri_record.iter() {
                 self.client
                     .publish_diagnostics(item.key().clone(), vec![], None)
                     .await;
             }
-            self.diagnostics_record.clear();
+            self.diagnostics_uri_record.clear();
             return;
         }
 
         // Publish new diagnostics
         for (uri, diagnostics) in diagnostics_map {
-            self.diagnostics_record.insert(uri.clone());
+            self.diagnostics_uri_record.insert(uri.clone());
             self.client
                 .publish_diagnostics(uri, diagnostics, None)
                 .await;
@@ -105,7 +105,7 @@ impl Server {
 
     pub async fn clear_diagnostic(&self, uris: &[lsp_types::Url], version: Option<i32>) {
         for uri in uris {
-            self.diagnostics_record.remove(uri);
+            self.diagnostics_uri_record.remove(uri);
             self.client
                 .publish_diagnostics(uri.clone(), vec![], version)
                 .await;

@@ -16,7 +16,7 @@ pub struct Server {
     client: tower_lsp::Client,
     router: Router,
 
-    diagnostics_record: DashSet<lsp_types::Url>,
+    diagnostics_uri_record: DashSet<lsp_types::Url>,
     duplicate_locations: parking_lot::Mutex<Vec<Vec<lsp_types::Location>>>,
 
     /// K: file path, V: language id
@@ -71,7 +71,7 @@ impl Server {
             fs_watcher,
             router: Router::new(),
             file_map: DashMap::default(),
-            diagnostics_record: DashSet::default(),
+            diagnostics_uri_record: DashSet::default(),
             duplicate_locations: parking_lot::Mutex::new(vec![]),
         });
 
