@@ -184,6 +184,11 @@ dependencies = [
 [[package]]
 name = "echolysis-cli"
 version = "0.1.0"
+dependencies = [
+ "echolysis-core",
+ "rayon",
+ "rpmalloc",
+]
 
 [[package]]
 name = "echolysis-core"

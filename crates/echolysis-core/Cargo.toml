@@ -4,16 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tree-sitter = "0.25"
-tree-sitter-rust = "0.23"
-tree-sitter-python = "0.23.6"
-rustc-hash.workspace = true
 ahash.workspace = true
-rayon.workspace = true
 dashmap.workspace = true
-streaming-iterator.workspace = true
 phf.workspace = true
+rayon.workspace = true
 rpmalloc.workspace = true
+rustc-hash.workspace = true
+streaming-iterator.workspace = true
+tree-sitter.workspace = true
+
+tree-sitter-python = "0.23.6"
+tree-sitter-rust = "0.23"
 
 [build-dependencies]
 cc = "*"

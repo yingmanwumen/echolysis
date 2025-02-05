@@ -18,10 +18,14 @@ keywords = []
 categories = []
 
 [workspace.dependencies]
-rustc-hash = "2.1.0"
 ahash = "0.8"
-rayon = "1.10.0"
 dashmap = { version = "6", features = ["rayon"] }
-streaming-iterator = "0.1"
 phf = { version = "0.11", features = ["macros"] }
+rayon = "1.10.0"
 rpmalloc = "0.2"
+rustc-hash = "2.1.0"
+streaming-iterator = "0.1"
+tree-sitter = "0.25"
+parking_lot = "0.12"
+futures = "0.3"
+git2 = "0.20.0"

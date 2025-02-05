@@ -4,16 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ahash.workspace = true
+dashmap.workspace = true
+futures.workspace = true
+git2.workspace = true
+parking_lot.workspace = true
+rayon.workspace = true
+rpmalloc.workspace = true
 rustc-hash.workspace = true
+
+echolysis-core = { path = "../echolysis-core" }
+
 tokio = { version = "1.43.0", features = ["full"] }
 tower-lsp = "0.20"
 notify = "8.0.0"
-parking_lot = "0.12"
-rayon.workspace = true
-rpmalloc.workspace = true
-git2 = "0.20.0"
-dashmap = "6.1"
-ahash.workspace = true
-futures = "0.3"
-
-echolysis-core = { path = "../echolysis-core" }

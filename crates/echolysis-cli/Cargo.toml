@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rpmalloc.workspace = true
+rayon.workspace = true
+
+echolysis-core = { path = "../echolysis-core" }
