@@ -3,8 +3,10 @@ use notify::{Config, Watcher};
 use std::path::PathBuf;
 use tower_lsp::lsp_types;
 
+use crate::server::utils::is_gitignored;
+
 use super::{
-    utils::{get_all_files_under_folder, get_git_top_root},
+    utils::{get_all_files_under_folder, git_root},
     Server,
 };
 
@@ -72,7 +74,7 @@ impl Server {
     pub(super) async fn watch(&self, folders: &[lsp_types::WorkspaceFolder]) {
         let folders: Vec<_> = folders
             .iter()
-            .filter_map(|f| f.uri.to_file_path().ok().and_then(|f| get_git_top_root(&f)))
+            .filter_map(|f| f.uri.to_file_path().ok().and_then(|f| git_root(&f)))
             .collect();
 
         if folders.is_empty() {
@@ -140,14 +142,7 @@ impl Server {
             .iter()
             .filter_map(|path| {
                 let uri = lsp_types::Url::from_file_path(path).ok()?;
-                // TODO: need add a global path filter here
-                // language specific path filters are also considered
-                if path.components().any(|c| {
-                    matches!(
-                        c.as_os_str().to_str(),
-                        Some("venv" | "node_modules" | "target")
-                    )
-                }) {
+                if is_gitignored(path) {
                     return None;
                 }
                 if path.is_file() || self.file_map.contains_key(&uri) {

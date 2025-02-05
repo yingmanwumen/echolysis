@@ -5,7 +5,7 @@ use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use tower_lsp::lsp_types;
 
-use crate::server::Server;
+use crate::server::{utils::is_gitignored, Server};
 
 impl Server {
     pub async fn on_insert(&self, sources: &[(lsp_types::Url, Option<Arc<String>>)]) {
@@ -21,6 +21,9 @@ impl Server {
         let supported = SupportedLanguage::supported_languages();
         for (uri, source) in sources {
             if let Ok(path) = uri.to_file_path() {
+                if is_gitignored(&path) {
+                    continue;
+                }
                 let language_id = get_language_id_by_path(&path);
                 if !supported.contains(&language_id) {
                     continue;

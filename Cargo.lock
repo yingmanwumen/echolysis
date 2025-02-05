@@ -199,7 +199,6 @@ dependencies = [
  "dashmap 6.1.0",
  "phf",
  "rayon",
- "rpmalloc",
  "rustc-hash",
  "streaming-iterator",
  "tree-sitter",

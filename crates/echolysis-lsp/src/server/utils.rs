@@ -30,12 +30,7 @@ pub fn get_all_files_under_folder(folder: &Path) -> Vec<PathBuf> {
         if let Ok(entries) = std::fs::read_dir(&current_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.components().any(|c| {
-                    matches!(
-                        c.as_os_str().to_str(),
-                        Some("venv" | "node_modules" | "target")
-                    )
-                }) {
+                if is_gitignored(&path) {
                     continue;
                 }
                 if path.is_dir() {
@@ -56,9 +51,17 @@ pub fn get_all_files_under_folder(folder: &Path) -> Vec<PathBuf> {
     files
 }
 
-pub fn get_git_top_root(path: &Path) -> Option<PathBuf> {
-    if let Ok(repo) = git2::Repository::discover(path) {
-        return Some(repo.workdir()?.to_path_buf());
-    }
-    None
+pub fn git_root(path: &Path) -> Option<PathBuf> {
+    Some(
+        git2::Repository::discover(path)
+            .ok()?
+            .workdir()?
+            .to_path_buf(),
+    )
+}
+
+pub fn is_gitignored(path: &Path) -> bool {
+    git2::Repository::discover(path)
+        .map(|repo| repo.status_should_ignore(path).unwrap_or(false))
+        .unwrap_or(false)
 }

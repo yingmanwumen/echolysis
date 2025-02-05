@@ -15,6 +15,6 @@ rustc-hash.workspace = true
 
 echolysis-core = { path = "../echolysis-core" }
 
+notify = "8.0.0"
 tokio = { version = "1.43.0", features = ["full"] }
 tower-lsp = "0.20"
-notify = "8.0.0"
