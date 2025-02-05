@@ -25,7 +25,7 @@ impl Server {
         let message = "Duplicated code fragments found\n".to_string();
         lsp_types::Diagnostic {
             range: location.range,
-            severity: Some(lsp_types::DiagnosticSeverity::WARNING),
+            severity: Some(lsp_types::DiagnosticSeverity::HINT),
             source: Some("echolysis".to_string()),
             message,
             related_information: Some(
