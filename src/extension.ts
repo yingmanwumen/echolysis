@@ -105,7 +105,7 @@ async function getServerPath(
       () => pathUri.fsPath,
       () => {
         throw new Error(
-          `${path} does not exist. Please check typos.path in Settings.`,
+          `${path} does not exist. Please check echolysis.path in Settings.`,
         );
       },
     );
