@@ -15,7 +15,8 @@ pub struct IndexedNode {
     query_index: Option<usize>,
     children: Vec<Arc<IndexedNode>>,
     source: Arc<String>,
-    kind: String,
+    kind: u16,
+    language: Arc<tree_sitter::Language>,
     start: tree_sitter::Point,
     end: tree_sitter::Point,
     start_byte: usize,
@@ -42,6 +43,7 @@ impl IndexedNode {
         query_index: Option<usize>,
         children: Vec<Arc<IndexedNode>>,
         source: Arc<String>,
+        language: Arc<tree_sitter::Language>,
     ) -> Self {
         Self {
             id: node.id(),
@@ -49,12 +51,13 @@ impl IndexedNode {
             query_index,
             children,
             source,
-            kind: node.kind().to_string(),
+            kind: node.kind_id(),
             start: node.start_position(),
             end: node.end_position(),
             start_byte: node.start_byte(),
             end_byte: node.end_byte(),
             is_extra_or_missing_or_error: node.is_extra() || node.is_missing() || node.is_error(),
+            language,
         }
     }
 
@@ -63,7 +66,9 @@ impl IndexedNode {
     }
 
     pub fn kind(&self) -> &str {
-        &self.kind
+        self.language
+            .node_kind_for_id(self.kind)
+            .unwrap_or_default()
     }
 
     pub fn text(&self) -> &str {

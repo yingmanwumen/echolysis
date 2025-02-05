@@ -1,25 +1,17 @@
-use std::{
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{path::PathBuf, sync::Arc};
 
-use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
+use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
 
 use super::indexed_node::IndexedNode;
 
 pub struct IndexedTree {
-    #[allow(dead_code)]
-    ts_tree: Mutex<Option<Tree>>,
     root: Arc<IndexedNode>,
 }
 
 impl IndexedTree {
     pub fn new(path: Arc<PathBuf>, source: Arc<String>, tree: Tree, query: &Query) -> Self {
-        let root_node = Self::build_index_nodes(tree.root_node(), path, source, query);
-        Self {
-            ts_tree: Mutex::new(Some(tree)),
-            root: root_node,
-        }
+        let root_node = Self::build_index_nodes(tree, path, source, query);
+        Self { root: root_node }
     }
 
     pub fn root_node(&self) -> Arc<IndexedNode> {
@@ -27,11 +19,13 @@ impl IndexedTree {
     }
 
     fn build_index_nodes(
-        tsnode: Node<'_>,
+        tree: Tree,
         path: Arc<PathBuf>,
         source: Arc<String>,
         query: &Query,
     ) -> Arc<IndexedNode> {
+        let tsnode = tree.root_node();
+        let language = Arc::new(tree.language().to_owned());
         // Get all matches first using streaming iterator
         let mut query_cursor = QueryCursor::new();
         let mut captures = query_cursor.captures(query, tsnode, source.as_bytes());
@@ -78,6 +72,7 @@ impl IndexedTree {
                     query_index,
                     children,
                     source.clone(),
+                    language.clone(),
                 ));
 
                 // Store this node in its parent's children list if it's not the root
