@@ -19,6 +19,10 @@ impl SupportedLanguage {
         vec!["python", "rust"]
     }
 
+    pub fn support(language_id: &str) -> bool {
+        matches!(language_id, "python" | "rust")
+    }
+
     pub fn from_language_id<T: AsRef<str>>(language_id: T) -> Option<SupportedLanguage> {
         match language_id.as_ref() {
             "python" => Some(SupportedLanguage::Python(Python::default())),

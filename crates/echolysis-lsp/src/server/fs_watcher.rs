@@ -3,7 +3,7 @@ use notify::{Config, Watcher};
 use std::path::PathBuf;
 use tower_lsp::lsp_types;
 
-use crate::server::utils::is_gitignored;
+use crate::server::utils::should_ignore;
 
 use super::{
     utils::{get_all_files_under_folder, git_root},
@@ -124,15 +124,13 @@ impl Server {
         use notify::{event::*, EventKind};
 
         // Early return for unsupported event types
-        let should_process = matches!(
+        if !matches!(
             event.kind,
             EventKind::Create(_)
                 | EventKind::Modify(ModifyKind::Data(_))
                 | EventKind::Modify(ModifyKind::Metadata(MetadataKind::WriteTime))
                 | EventKind::Remove(_)
-        );
-
-        if !should_process {
+        ) {
             return;
         }
 
@@ -141,10 +139,10 @@ impl Server {
             .paths
             .iter()
             .filter_map(|path| {
-                let uri = lsp_types::Url::from_file_path(path).ok()?;
-                if is_gitignored(path) {
+                if should_ignore(path) {
                     return None;
                 }
+                let uri = lsp_types::Url::from_file_path(path).ok()?;
                 if path.is_file() || self.file_map.contains_key(&uri) {
                     Some(uri)
                 } else {

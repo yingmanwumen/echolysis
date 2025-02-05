@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use echolysis_core::engine::indexed_node::IndexedNode;
+use echolysis_core::{
+    engine::indexed_node::IndexedNode, languages::SupportedLanguage,
+    utils::language_id::get_language_id_by_path,
+};
 use tower_lsp::lsp_types;
 
 // Convert tree-sitter point to LSP position
@@ -30,7 +33,7 @@ pub fn get_all_files_under_folder(folder: &Path) -> Vec<PathBuf> {
         if let Ok(entries) = std::fs::read_dir(&current_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if is_gitignored(&path) {
+                if should_ignore(&path) {
                     continue;
                 }
                 if path.is_dir() {
@@ -58,6 +61,16 @@ pub fn git_root(path: &Path) -> Option<PathBuf> {
             .workdir()?
             .to_path_buf(),
     )
+}
+
+pub fn should_ignore(path: &Path) -> bool {
+    if is_gitignored(path) {
+        return true;
+    }
+    if !path.is_file() {
+        return false;
+    }
+    !SupportedLanguage::support(get_language_id_by_path(path))
 }
 
 pub fn is_gitignored(path: &Path) -> bool {
