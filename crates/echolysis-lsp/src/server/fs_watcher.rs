@@ -3,10 +3,7 @@ use notify::{Config, Watcher};
 use std::path::PathBuf;
 use tower_lsp::lsp_types;
 
-use crate::server::{
-    on_event::{on_insert, on_remove},
-    utils::should_ignore,
-};
+use crate::server::utils::should_ignore;
 
 use super::{
     utils::{get_all_files_under_folder, git_root},

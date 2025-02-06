@@ -5,7 +5,6 @@ use fs_watcher::FsWatcher;
 use router::Router;
 use tower_lsp::lsp_types::{self, MessageType};
 
-mod debouncer;
 mod diagnostic;
 mod fs_watcher;
 mod language_server;
