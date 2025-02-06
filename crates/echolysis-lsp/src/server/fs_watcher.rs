@@ -3,7 +3,10 @@ use notify::{Config, Watcher};
 use std::path::PathBuf;
 use tower_lsp::lsp_types;
 
-use crate::server::utils::should_ignore;
+use crate::server::{
+    on_event::{on_insert, on_remove},
+    utils::should_ignore,
+};
 
 use super::{
     utils::{get_all_files_under_folder, git_root},
@@ -119,24 +122,9 @@ impl Server {
         }
     }
 
-    // Handle filesystem events for code duplication analysis
-    async fn do_handle_fs_event(&self, event: notify::Event) {
-        use notify::{event::*, EventKind};
-
-        // Early return for unsupported event types
-        if !matches!(
-            event.kind,
-            EventKind::Create(_)
-                | EventKind::Modify(ModifyKind::Data(_))
-                | EventKind::Modify(ModifyKind::Metadata(MetadataKind::WriteTime))
-                | EventKind::Remove(_)
-        ) {
-            return;
-        }
-
+    fn filter_map_fs_event_paths(&self, paths: &[PathBuf]) -> Vec<lsp_types::Url> {
         // Filter relevant paths (files that are not logs and tracked files)
-        let uris: Vec<_> = event
-            .paths
+        paths
             .iter()
             .filter_map(|path| {
                 if should_ignore(path) {
@@ -149,17 +137,25 @@ impl Server {
                     None
                 }
             })
-            .collect();
+            .collect()
+    }
 
-        if uris.is_empty() {
-            return;
-        }
+    // Handle filesystem events for code duplication analysis
+    async fn do_handle_fs_event(&self, event: notify::Event) {
+        use notify::{event::*, EventKind};
 
         // Process the event based on its type
         match event.kind {
             EventKind::Create(_)
-            | EventKind::Modify(ModifyKind::Data(_))
-            | EventKind::Modify(ModifyKind::Metadata(MetadataKind::WriteTime)) => {
+            | EventKind::Modify(
+                ModifyKind::Data(_)
+                | ModifyKind::Name(RenameMode::To)
+                | ModifyKind::Metadata(MetadataKind::WriteTime),
+            ) => {
+                let uris = self.filter_map_fs_event_paths(&event.paths);
+                if uris.is_empty() {
+                    return;
+                }
                 self.on_insert(
                     &uris
                         .into_iter()
@@ -168,10 +164,34 @@ impl Server {
                 )
                 .await;
             }
-            EventKind::Remove(_) => {
+            EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(RenameMode::From)) => {
+                let uris = self.filter_map_fs_event_paths(&event.paths);
+                if uris.is_empty() {
+                    return;
+                }
                 self.on_remove(&uris).await;
             }
-            _ => (),
+            EventKind::Modify(ModifyKind::Name(RenameMode::Both)) => {
+                if let [from, to] = event.paths.as_slice() {
+                    let from = self.filter_map_fs_event_paths(&[from.clone()]);
+                    let to = self.filter_map_fs_event_paths(&[to.clone()]).pop();
+                    if !from.is_empty() {
+                        self.on_remove(&from).await;
+                    }
+                    if let Some(to) = to {
+                        self.on_insert(&[(to, None)]).await;
+                    }
+                }
+            }
+            EventKind::Any
+            | EventKind::Access(_)
+            | EventKind::Other
+            | EventKind::Modify(
+                ModifyKind::Any
+                | ModifyKind::Other
+                | ModifyKind::Name(RenameMode::Any | RenameMode::Other)
+                | ModifyKind::Metadata(_),
+            ) => {}
         }
     }
 }
