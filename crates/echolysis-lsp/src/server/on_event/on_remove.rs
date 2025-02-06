@@ -19,6 +19,10 @@ impl Server {
     }
 
     pub async fn on_remove(&self, uris: &[lsp_types::Url]) {
+        if self.is_stopped() {
+            return;
+        }
+
         // Clear diagnostics for files being removed and their duplicates
         self.clear_diagnostic(
             &[
@@ -51,15 +55,6 @@ impl Server {
             }
         });
 
-        self.push_diagnostic().await;
-    }
-
-    pub async fn on_remove_all(&self) {
-        self.file_map.clear();
-        self.router
-            .engines()
-            .iter()
-            .for_each(|engine| engine.remove_all());
         self.push_diagnostic().await;
     }
 }

@@ -49,8 +49,7 @@ impl FsWatcher {
         }
     }
 
-    #[allow(unused)]
-    fn clear(&self) {
+    pub(super) fn clear(&self) {
         let mut watcher = self.watcher.lock();
         for folder in self.folders.iter() {
             let _ = watcher.unwatch(&folder);
@@ -72,6 +71,10 @@ impl Server {
     }
 
     pub(super) async fn watch(&self, folders: &[lsp_types::WorkspaceFolder]) {
+        if self.is_stopped() {
+            return;
+        }
+
         let folders: Vec<_> = folders
             .iter()
             .filter_map(|f| f.uri.to_file_path().ok().and_then(|f| git_root(&f)))
@@ -100,12 +103,6 @@ impl Server {
         self.fs_watcher.unwatch(&folders);
         let files = Self::collect_folder_files(folders);
         self.on_remove(&files).await;
-    }
-
-    #[allow(unused)]
-    pub(super) async fn clear(&self) {
-        self.fs_watcher.clear();
-        self.on_remove_all().await;
     }
 
     pub(super) async fn handle_fs_event(&self, event: Result<notify::Event, notify::Error>) {

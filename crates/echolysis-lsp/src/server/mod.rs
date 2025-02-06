@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{atomic::AtomicBool, Arc},
+    time::Duration,
+};
 
 use dashmap::{DashMap, DashSet};
 use fs_watcher::FsWatcher;
@@ -22,6 +25,8 @@ pub struct Server {
     /// K: file path, V: language id
     file_map: DashMap<lsp_types::Url, &'static str>,
     fs_watcher: FsWatcher,
+
+    stopped: AtomicBool,
 }
 
 impl Server {
@@ -49,7 +54,9 @@ impl Server {
     ) {
         tokio::spawn(async move {
             while let Some(evt) = rx.recv().await {
-                server.handle_fs_event(evt).await;
+                if !server.is_stopped() {
+                    server.handle_fs_event(evt).await;
+                }
             }
         });
     }
@@ -73,10 +80,28 @@ impl Server {
             file_map: DashMap::default(),
             diagnostics_uri_record: DashSet::default(),
             duplicate_locations: parking_lot::Mutex::new(vec![]),
+            stopped: AtomicBool::new(false),
         });
 
         Self::run_fs_event_loop(server.clone(), fs_evt_rx);
 
         server
+    }
+
+    pub async fn clear(&self) {
+        self.fs_watcher.clear();
+        self.file_map.clear();
+        self.router.clear(); // Clear router before clear diagnostics
+        self.push_diagnostic().await;
+    }
+
+    pub async fn stop(&self) {
+        self.stopped
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        self.clear().await;
+    }
+
+    pub fn is_stopped(&self) -> bool {
+        self.stopped.load(std::sync::atomic::Ordering::SeqCst)
     }
 }

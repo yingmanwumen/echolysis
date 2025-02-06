@@ -34,6 +34,10 @@ impl Server {
     }
 
     pub async fn on_insert(&self, sources: &[(lsp_types::Url, Option<Arc<String>>)]) {
+        if self.is_stopped() {
+            return;
+        }
+
         // Clear diagnostics for modified files first
         self.clear_diagnostic(
             &sources.iter().map(|x| x.0.clone()).collect::<Vec<_>>(),

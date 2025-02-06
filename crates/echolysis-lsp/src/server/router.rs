@@ -42,6 +42,10 @@ impl Router {
     pub fn remove_engine(&self, language_id: &str) {
         self.engines.remove(language_id);
     }
+
+    pub fn clear(&self) {
+        self.engines.clear();
+    }
 }
 
 impl Default for Router {

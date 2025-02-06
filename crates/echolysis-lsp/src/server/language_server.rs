@@ -14,6 +14,9 @@ impl LanguageServer for Server {
         &self,
         params: lsp_types::InitializeParams,
     ) -> jsonrpc::Result<lsp_types::InitializeResult> {
+        self.stopped
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+
         self.watch(&params.workspace_folders.unwrap_or_default())
             .await;
 
@@ -44,6 +47,7 @@ impl LanguageServer for Server {
     }
 
     async fn shutdown(&self) -> jsonrpc::Result<()> {
+        self.stop().await;
         Ok(())
     }
 
@@ -80,6 +84,10 @@ impl LanguageServer for Server {
         &self,
         params: GotoDefinitionParams,
     ) -> jsonrpc::Result<Option<GotoDefinitionResponse>> {
+        if self.is_stopped() {
+            return Err(jsonrpc::Error::invalid_request());
+        }
+
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
 
