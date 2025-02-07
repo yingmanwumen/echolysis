@@ -22,7 +22,10 @@ impl Server {
         location: &lsp_types::Location,
         other_locations: &[lsp_types::Location],
     ) -> lsp_types::Diagnostic {
-        let message = "Duplicated code fragments found\n".to_string();
+        let message = format!(
+            "Duplicated code fragments found in {} place(s)",
+            other_locations.len()
+        );
         lsp_types::Diagnostic {
             range: location.range,
             severity: Some(lsp_types::DiagnosticSeverity::INFORMATION),
