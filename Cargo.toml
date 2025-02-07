@@ -21,7 +21,7 @@ categories = []
 ahash = "0.8"
 dashmap = { version = "6", features = ["rayon"] }
 futures = "0.3"
-git2 = "0.20.0"
+git2 = { version = "0.20.0", features = ["vendored-openssl", "vendored-libgit2"] }
 parking_lot = "0.12"
 phf = { version = "0.11", features = ["macros"] }
 rayon = "1.10.0"
