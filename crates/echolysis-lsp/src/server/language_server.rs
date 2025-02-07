@@ -91,34 +91,35 @@ impl LanguageServer for Server {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
 
+        let is_inside = |location: &lsp_types::Location,
+                         uri: &lsp_types::Url,
+                         position: &lsp_types::Position|
+         -> bool {
+            location.uri == *uri
+                && location.range.start.line <= position.line
+                && position.line <= location.range.end.line
+                && (position.line != location.range.start.line
+                    || position.character >= location.range.start.character)
+                && (position.line != location.range.end.line
+                    || position.character <= location.range.end.character)
+        };
+
         // Find a range that contains the clicked position
         let matching_locations = self
             .duplicate_locations
             .lock()
             .iter()
-            .find(|locations| {
-                locations.iter().any(|location| {
-                    location.uri == uri
-                        && location.range.start.line <= position.line
-                        && position.line <= location.range.end.line
-                        && (position.line != location.range.start.line
-                            || position.character >= location.range.start.character)
-                        && (position.line != location.range.end.line
-                            || position.character <= location.range.end.character)
-                })
-            })
-            .map(|locations| {
-                locations
+            .find_map(|locations| {
+                let from = locations
                     .iter()
-                    .filter(|location| {
-                        location.uri != uri
-                            || (location.range.start.line != position.line
-                                && location.range.end.line != position.line
-                                && location.range.start.character != position.character
-                                && location.range.end.character != position.character)
-                    })
-                    .cloned()
-                    .collect::<Vec<_>>()
+                    .find(|location| is_inside(location, &uri, &position))?;
+                Some(
+                    locations
+                        .iter()
+                        .filter(|to| *to != from)
+                        .cloned()
+                        .collect::<Vec<_>>(),
+                )
             });
 
         if let Some(locations) = matching_locations {
