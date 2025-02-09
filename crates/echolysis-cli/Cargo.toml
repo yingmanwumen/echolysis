@@ -5,6 +5,5 @@ edition = "2021"
 
 [dependencies]
 rayon.workspace = true
-rpmalloc.workspace = true
 
 echolysis-core = { path = "../echolysis-core" }

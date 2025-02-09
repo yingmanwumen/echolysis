@@ -2,9 +2,6 @@ use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use echolysis_core::{engine::Engine, languages::SupportedLanguage};
 
-#[global_allocator]
-static GLOBAL: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
-
 pub fn main() {
     rayon::ThreadPoolBuilder::new()
         .num_threads(8)

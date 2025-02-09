@@ -10,7 +10,6 @@ futures.workspace = true
 git2.workspace = true
 parking_lot.workspace = true
 rayon.workspace = true
-rpmalloc.workspace = true
 rustc-hash.workspace = true
 
 echolysis-core = { path = "../echolysis-core" }
