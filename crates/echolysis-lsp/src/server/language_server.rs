@@ -64,12 +64,42 @@ impl LanguageServer for Server {
             .await;
     }
 
-    async fn did_change(&self, mut params: lsp_types::DidChangeTextDocumentParams) {
-        self.on_insert(&[(
-            params.text_document.uri,
-            Some(Arc::new(params.content_changes.swap_remove(0).text)),
-        )])
-        .await;
+    async fn did_change(&self, params: lsp_types::DidChangeTextDocumentParams) {
+        static LAST_CHANGE: parking_lot::Mutex<Option<lsp_types::DidChangeTextDocumentParams>> =
+            parking_lot::Mutex::new(None);
+        static LAST_CHANGE_TIME: parking_lot::Mutex<Option<std::time::Instant>> =
+            parking_lot::Mutex::new(None);
+        let uri = params.text_document.uri.clone();
+        let last = LAST_CHANGE.lock().replace(params);
+        match last {
+            Some(mut last) if last.text_document.uri != uri => {
+                self.on_insert(&[(
+                    last.text_document.uri,
+                    Some(Arc::new(last.content_changes.swap_remove(0).text)),
+                )])
+                .await;
+            }
+            _ => (),
+        }
+        LAST_CHANGE_TIME.lock().replace(std::time::Instant::now());
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+        let last_time = *LAST_CHANGE_TIME.lock();
+        match last_time {
+            None => (),
+            Some(last_time) if last_time.elapsed().as_millis() < 500 => (),
+            _ => {
+                let last = LAST_CHANGE.lock().take();
+                if let Some(mut last) = last {
+                    self.on_insert(&[(
+                        last.text_document.uri,
+                        Some(Arc::new(last.content_changes.swap_remove(0).text)),
+                    )])
+                    .await;
+                }
+            }
+        }
     }
 
     async fn did_change_workspace_folders(

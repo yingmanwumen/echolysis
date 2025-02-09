@@ -118,7 +118,7 @@ def detect_duplicated_tree(
 
 
 def get_extra_data_of_tree(
-    trees: Dict[str, Tree]
+    trees: Dict[str, Tree],
 ) -> Tuple[Dict[int, Node], Dict[int, str]]:
     id_map = {}
     path_map = {}
