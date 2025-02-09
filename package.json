@@ -40,7 +40,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "NODE_ENV=production npm run build",
+    "vscode:prepublish": "cross-env NODE_ENV=production npm run build",
     "build": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
     "pretest": "npm run compile && npm run lint",
@@ -58,7 +58,8 @@
     "@vscode/test-electron": "2.4.1",
     "esbuild": "^0.24.2",
     "eslint": "9.19.0",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "cross-env": "^7.0.3"
   },
   "dependencies": {
     "vscode-languageclient": "9.0.1"
