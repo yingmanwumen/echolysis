@@ -135,6 +135,8 @@ impl Server {
     }
 
     // Handle filesystem events for code duplication analysis
+    // FIXME: There are bugs when dealing with directories. Fix it so that we can handle directory
+    // changes correctly
     async fn do_handle_fs_event(&self, event: notify::Event) {
         use notify::{event::*, EventKind};
 

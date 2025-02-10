@@ -16,7 +16,13 @@ impl Engine {
     pub fn insert(&self, path: Arc<PathBuf>, source: Arc<String>) -> Option<()> {
         let mut parser = self.language.parser();
         let query = self.language.query();
-        let tree = parser.parse(source.as_str(), None)?;
+        let tree = match parser.parse(source.as_str(), None) {
+            Some(tree) => tree,
+            None => {
+                self.remove(path);
+                return None;
+            }
+        };
         let indexed_tree = IndexedTree::new(path.clone(), source, tree, query);
 
         match self.tree_map.entry(path) {
